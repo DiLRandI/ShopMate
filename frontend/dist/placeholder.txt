@@ -1,0 +1,1 @@
+This file allows go:embed to succeed during development. It will be replaced by Vite builds.

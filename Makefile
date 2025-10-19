@@ -4,6 +4,9 @@ GO ?= go
 WAILS ?= wails
 NODE ?= npm
 FRONTEND_DIR := frontend
+EXEC_TMP ?= /var/tmp/wails-tmp
+GOOS ?= $(shell $(GO) env GOOS)
+GOARCH ?= $(shell $(GO) env GOARCH)
 
 .PHONY: help deps dev build lint lint-go lint-web test test-go test-web fmt tidy clean
 
@@ -16,19 +19,21 @@ help:
 	@echo "  make test   - Run Go and frontend test suites."
 
 deps:
-	$(GO) mod tidy
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO) mod tidy
 	$(NODE) --prefix $(FRONTEND_DIR) install
 
 dev:
-	$(WAILS) dev
+	mkdir -p $(EXEC_TMP)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) TMPDIR=$(EXEC_TMP) GOTMPDIR=$(EXEC_TMP) $(WAILS) dev
 
 build:
-	$(WAILS) build
+	mkdir -p $(EXEC_TMP)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) TMPDIR=$(EXEC_TMP) GOTMPDIR=$(EXEC_TMP) $(WAILS) build
 
 lint: lint-go lint-web
 
 lint-go:
-	$(GO) vet ./...
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO) vet ./...
 
 lint-web:
 	$(NODE) --prefix $(FRONTEND_DIR) run lint
@@ -36,16 +41,16 @@ lint-web:
 test: test-go test-web
 
 test-go:
-	$(GO) test ./...
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO) test ./...
 
 test-web:
-	$(NODE) --prefix $(FRONTEND_DIR) run test -- --run
+	$(NODE) --prefix $(FRONTEND_DIR) run test
 
 fmt:
-	$(GO) fmt ./...
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO) fmt ./...
 
 tidy: fmt
-	$(GO) mod tidy
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO) mod tidy
 	$(NODE) --prefix $(FRONTEND_DIR) run format
 
 clean:
