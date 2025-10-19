@@ -1,11 +1,6 @@
-package shopmate
+package main
 
 import "embed"
 
-//go:embed frontend/dist
+//go:embed all:frontend/dist
 var frontendAssets embed.FS
-
-// FrontendAssets exposes the embedded frontend bundle.
-func FrontendAssets() embed.FS {
-	return frontendAssets
-}

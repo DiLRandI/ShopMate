@@ -7,7 +7,6 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
-	shopmate "shopmate"
 	"shopmate/internal/app"
 	"shopmate/internal/logging"
 )
@@ -30,16 +29,16 @@ func main() {
 		MinHeight:        768,
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		AssetServer: &assetserver.Options{
-			Assets: shopmate.FrontendAssets(),
+			Assets: frontendAssets,
 		},
 		OnStartup:  application.Startup,
 		OnShutdown: application.Shutdown,
 		Bind: []interface{}{
 			application,
-			// application.Products(),
-			// application.Sales(),
-			// application.Reports(),
-			// application.Backups(),
+			application.Products(),
+			application.Sales(),
+			application.Reports(),
+			application.Backups(),
 		},
 	})
 	if err != nil {

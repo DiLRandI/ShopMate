@@ -2,11 +2,13 @@
 build/
 bin/
 data/
+.wails-tmp/
 
 # Frontend dependencies and bundles
 frontend/node_modules/
 frontend/dist/*
 !frontend/dist/placeholder.txt
+frontend/package.json.md5
 
 # Editor
 .idea/
