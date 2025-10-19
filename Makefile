@@ -5,14 +5,10 @@ WAILS ?= wails
 NODE ?= npm
 FRONTEND_DIR := frontend
 
-EXEC_TMP ?= $(CURDIR)/.wails-tmp
-EXEC_TMP_CACHE := $(EXEC_TMP)/go-cache
-EXEC_TMP_TMP := $(EXEC_TMP)/tmp
-
 GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
 
-.PHONY: help deps dev build lint lint-go lint-web test test-go test-web fmt tidy clean prepare-env
+.PHONY: help deps dev build lint lint-go lint-web test test-go test-web fmt tidy clean
 
 help:
 	@echo "Common targets:"
@@ -22,23 +18,19 @@ help:
 	@echo "  make lint   - Run Go and frontend linters."
 	@echo "  make test   - Run Go and frontend test suites."
 
-prepare-env:
-	mkdir -p $(EXEC_TMP_CACHE) $(EXEC_TMP_TMP)
-	chmod 755 $(EXEC_TMP) $(EXEC_TMP_CACHE) $(EXEC_TMP_TMP)
-
-deps: prepare-env
+deps:
 	GOOS=$(GOOS) GOARCH=$(GOARCH) GOCACHE=$(EXEC_TMP_CACHE) TMPDIR=$(EXEC_TMP_TMP) GOTMPDIR=$(EXEC_TMP_TMP) $(GO) mod tidy
 	$(NODE) --prefix $(FRONTEND_DIR) install
 
-dev: prepare-env
+dev:
 	GOOS=$(GOOS) GOARCH=$(GOARCH) TMPDIR=$(EXEC_TMP_TMP) GOTMPDIR=$(EXEC_TMP_TMP) GOCACHE=$(EXEC_TMP_CACHE) $(WAILS) dev
 
-build: prepare-env
+build:
 	GOOS=$(GOOS) GOARCH=$(GOARCH) TMPDIR=$(EXEC_TMP_TMP) GOTMPDIR=$(EXEC_TMP_TMP) GOCACHE=$(EXEC_TMP_CACHE) $(WAILS) build
 
 lint: lint-go lint-web
 
-lint-go: prepare-env
+lint-go:
 	GOOS=$(GOOS) GOARCH=$(GOARCH) GOCACHE=$(EXEC_TMP_CACHE) TMPDIR=$(EXEC_TMP_TMP) GOTMPDIR=$(EXEC_TMP_TMP) $(GO) vet ./...
 
 lint-web:
@@ -46,16 +38,16 @@ lint-web:
 
 test: test-go test-web
 
-test-go: prepare-env
+test-go:
 	GOOS=$(GOOS) GOARCH=$(GOARCH) GOCACHE=$(EXEC_TMP_CACHE) TMPDIR=$(EXEC_TMP_TMP) GOTMPDIR=$(EXEC_TMP_TMP) $(GO) test ./...
 
 test-web:
 	$(NODE) --prefix $(FRONTEND_DIR) run test
 
-fmt: prepare-env
+fmt:
 	GOOS=$(GOOS) GOARCH=$(GOARCH) GOCACHE=$(EXEC_TMP_CACHE) TMPDIR=$(EXEC_TMP_TMP) GOTMPDIR=$(EXEC_TMP_TMP) $(GO) fmt ./...
 
-tidy: fmt prepare-env
+tidy: fmt
 	GOOS=$(GOOS) GOARCH=$(GOARCH) GOCACHE=$(EXEC_TMP_CACHE) TMPDIR=$(EXEC_TMP_TMP) GOTMPDIR=$(EXEC_TMP_TMP) $(GO) mod tidy
 	$(NODE) --prefix $(FRONTEND_DIR) run format
 

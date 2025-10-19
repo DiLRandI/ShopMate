@@ -1,5 +1,6 @@
 import {useEffect, useState} from "react";
-import {createProduct, fetchProducts, ProductView} from "@/features/products/api";
+import {createProduct, fetchProducts} from "@/features/products/api";
+import type {ProductView} from "@/features/products/api";
 import {ProductForm} from "@/features/products/components/ProductForm";
 import {ProductTable} from "@/features/products/components/ProductTable";
 
