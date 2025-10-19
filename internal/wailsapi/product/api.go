@@ -10,12 +10,17 @@ import (
 
 // API exposes product operations to the Wails frontend layer.
 type API struct {
-	service *service.Service
+	service       *service.Service
+	contextSource func() context.Context
 }
 
 // New constructs the product API bridge.
-func New(service *service.Service) *API {
-	return &API{service: service}
+func New(service *service.Service, provider func() context.Context) *API {
+	source := provider
+	if source == nil {
+		source = context.Background
+	}
+	return &API{service: service, contextSource: source}
 }
 
 // ProductInput describes the fields accepted from the frontend.
@@ -42,7 +47,8 @@ type ProductView struct {
 }
 
 // CreateProduct persists a product and returns its representation.
-func (api *API) CreateProduct(ctx context.Context, input ProductInput) (*ProductView, error) {
+func (api *API) CreateProduct(input ProductInput) (*ProductView, error) {
+	ctx := api.contextSource()
 	product, err := api.service.Create(ctx, domain.CreateInput{
 		Name:           input.Name,
 		SKU:            input.SKU,
@@ -62,7 +68,8 @@ func (api *API) CreateProduct(ctx context.Context, input ProductInput) (*Product
 }
 
 // ListProducts retrieves all products.
-func (api *API) ListProducts(ctx context.Context) ([]ProductView, error) {
+func (api *API) ListProducts() ([]ProductView, error) {
+	ctx := api.contextSource()
 	products, err := api.service.List(ctx)
 	if err != nil {
 		return nil, err

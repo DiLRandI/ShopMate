@@ -57,14 +57,16 @@ func New(logger *slog.Logger) (*App, error) {
 	reportSvc := reportservice.NewService(reportRepo)
 	backupSvc := backupservice.NewService(backupRepo, store.Path())
 
-	return &App{
-		logger:   logger,
-		store:    store,
-		products: productapi.New(productSvc),
-		sales:    saleapi.New(saleSvc),
-		reports:  reportapi.New(reportSvc),
-		backups:  backupapi.New(backupSvc),
-	}, nil
+	app := &App{
+		logger: logger,
+		store:  store,
+	}
+	app.products = productapi.New(productSvc, app.runtimeContext)
+	app.sales = saleapi.New(saleSvc)
+	app.reports = reportapi.New(reportSvc)
+	app.backups = backupapi.New(backupSvc)
+
+	return app, nil
 }
 
 // Startup stores the lifecycle context from Wails for later use.
@@ -108,4 +110,11 @@ func (a *App) Reports() *reportapi.API {
 // Backups exposes backup controls.
 func (a *App) Backups() *backupapi.API {
 	return a.backups
+}
+
+func (a *App) runtimeContext() context.Context {
+	if a.ctx != nil {
+		return a.ctx
+	}
+	return context.Background()
 }
