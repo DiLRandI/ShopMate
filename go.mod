@@ -4,7 +4,7 @@ go 1.25.3
 
 require (
 	github.com/wailsapp/wails/v2 v2.10.2
-	golang.org/x/crypto v0.33.0
+	golang.org/x/crypto v0.35.0
 	modernc.org/sqlite v1.39.1
 )
 
