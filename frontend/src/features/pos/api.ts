@@ -1,9 +1,23 @@
 import {CreateSale} from "../../../wailsjs/go/sale/API";
-import type {sale} from "../../../wailsjs/go/models";
+import {sale} from "../../../wailsjs/go/models";
 
-export type CreateSaleRequest = sale.CreateSaleRequest;
+type CreateSaleRequestLine = {
+  productId: number;
+  quantity: number;
+  discountCents: number;
+};
+
+export type CreateSaleRequest = {
+  saleNumber: string;
+  customerName: string;
+  paymentMethod: "Cash" | "Card" | "Wallet/UPI";
+  discountCents: number;
+  lines: CreateSaleRequestLine[];
+};
+
 export type Sale = sale.Sale;
 
 export async function createSale(request: CreateSaleRequest): Promise<Sale> {
-  return CreateSale(request);
+  const payload = sale.CreateSaleRequest.createFrom(request);
+  return CreateSale(payload);
 }
