@@ -10,12 +10,17 @@ import (
 
 // API bridges sale services to the frontend.
 type API struct {
-	service *saleservice.Service
+	service       *saleservice.Service
+	contextSource func() context.Context
 }
 
 // New constructs the sale API.
-func New(service *saleservice.Service) *API {
-	return &API{service: service}
+func New(service *saleservice.Service, provider func() context.Context) *API {
+	source := provider
+	if source == nil {
+		source = context.Background
+	}
+	return &API{service: service, contextSource: source}
 }
 
 // CreateSaleRequestLine represents a line input from frontend.
@@ -35,7 +40,8 @@ type CreateSaleRequest struct {
 }
 
 // CreateSale records a sale and returns the saved invoice.
-func (api *API) CreateSale(ctx context.Context, req CreateSaleRequest) (*domainsale.Sale, error) {
+func (api *API) CreateSale(req CreateSaleRequest) (*domainsale.Sale, error) {
+	ctx := api.contextSource()
 	lines := make([]saleservice.CreateRequestLine, 0, len(req.Lines))
 	for _, line := range req.Lines {
 		lines = append(lines, saleservice.CreateRequestLine{
@@ -55,7 +61,8 @@ func (api *API) CreateSale(ctx context.Context, req CreateSaleRequest) (*domains
 }
 
 // ListSales returns sales between ISO-8601 date strings (inclusive range).
-func (api *API) ListSales(ctx context.Context, fromISO, toISO string) ([]domainsale.Sale, error) {
+func (api *API) ListSales(fromISO, toISO string) ([]domainsale.Sale, error) {
+	ctx := api.contextSource()
 	from, err := time.Parse(time.RFC3339, fromISO)
 	if err != nil {
 		return nil, err
@@ -68,6 +75,7 @@ func (api *API) ListSales(ctx context.Context, fromISO, toISO string) ([]domains
 }
 
 // RefundSale reverts a sale and restores inventory.
-func (api *API) RefundSale(ctx context.Context, saleID int64) error {
+func (api *API) RefundSale(saleID int64) error {
+	ctx := api.contextSource()
 	return api.service.Refund(ctx, saleID)
 }

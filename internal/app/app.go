@@ -62,7 +62,7 @@ func New(logger *slog.Logger) (*App, error) {
 		store:  store,
 	}
 	app.products = productapi.New(productSvc, app.runtimeContext)
-	app.sales = saleapi.New(saleSvc)
+	app.sales = saleapi.New(saleSvc, app.runtimeContext)
 	app.reports = reportapi.New(reportSvc)
 	app.backups = backupapi.New(backupSvc)
 
