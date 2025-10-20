@@ -4,6 +4,7 @@ import type {ProductInput} from "../api";
 
 type FormState = {
   name: string;
+  category: string;
   sku: string;
   price: string;
   taxRate: string;
@@ -20,6 +21,7 @@ type ProductFormProps = {
 
 const initialState: FormState = {
   name: "",
+  category: "",
   sku: "",
   price: "0.00",
   taxRate: "0",
@@ -48,6 +50,7 @@ export function ProductForm({onCreate, isSubmitting, error}: ProductFormProps) {
 
     const payload: ProductInput = {
       name: form.name.trim(),
+      category: form.category.trim(),
       sku: form.sku.trim(),
       unitPriceCents: parseMoney(form.price),
       taxRate: Number.parseFloat(form.taxRate) || 0,
@@ -66,6 +69,10 @@ export function ProductForm({onCreate, isSubmitting, error}: ProductFormProps) {
         <label>
           <span>Name</span>
           <input required value={form.name} onChange={updateField("name")} placeholder="Milk 1L"/>
+        </label>
+        <label>
+          <span>Category</span>
+          <input value={form.category} onChange={updateField("category")} placeholder="Dairy"/>
         </label>
         <label>
           <span>SKU / Barcode</span>

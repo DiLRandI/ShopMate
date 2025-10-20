@@ -13,7 +13,14 @@ import (
 
 func main() {
 	env := os.Getenv("SHOPMATE_ENV")
-	logger := logging.New(env)
+	locale := os.Getenv("SHOPMATE_LOCALE")
+	telemetry := os.Getenv("SHOPMATE_ENABLE_TELEMETRY") == "1"
+
+	logger := logging.New(logging.Options{
+		Env:             env,
+		Locale:          locale,
+		EnableTelemetry: telemetry,
+	})
 
 	application, err := app.New(logger)
 	if err != nil {
@@ -39,6 +46,8 @@ func main() {
 			application.Sales(),
 			application.Reports(),
 			application.Backups(),
+			application.Settings(),
+			application.Invoices(),
 		},
 	})
 	if err != nil {

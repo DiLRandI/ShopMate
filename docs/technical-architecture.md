@@ -48,6 +48,23 @@ This document describes the recommended repository layout, tooling baselines, an
 - Use `sync.WaitGroup.Go` for structured fan-out work (e.g., concurrent export generation) to avoid manual counter management. citeturn6search0
 - For concurrent testing, exercise workflows with `testing/synctest` to catch timing bugs in stock adjustments and backup scheduling. citeturn6search0
 
+### Backup & Restore Lifecycle
+- `internal/services/backup` now schedules nightly snapshots (next-midnight ticker) and on-shutdown backups. Retention defaults to 30 and trims both files and metadata for older entries using millisecond-resolution filenames.
+- Manual restore copies the selected snapshot, records a pre-restore backup automatically, and is covered by integration tests in `service_test.go`.
+- All backup metadata lives in `backup_settings` and `backups`; helpers expose `Create`, `List`, `Restore`, and `SetRetention` to the Wails bridge.
+
+### Settings & Security
+- `internal/services/settings` wraps the `settings` table, exposes profile/preferences APIs, and hashes owner PINs via `bcrypt` with validation helpers. `VerifyOwnerPIN` and `ClearOwnerPIN` gate sensitive operations.
+- Preferences track locale, high-contrast mode, and telemetry toggles consumed by the logging factory and UI shell.
+
+### Invoice Rendering & Reporting
+- `internal/services/invoice` renders deterministic HTML templates (Go `html/template`) and emits lightweight PDFs via a handwritten writer (no external binary dependency). Wails API exposes base64 payloads for printing/downloading.
+- Reporting service adds CSV export helpers for daily summaries and top products; frontend buttons trigger base64 downloads and reflect the same calculations used in Go tests.
+
+### Wails Bridge Contract
+- All exported Go APIs now return a generic `response.Envelope[T]` ensuring `{ok,data,error}` semantics. Frontend wrappers unwrap envelopes consistently via `services/wailsResponse.ts`.
+- New bridges: `settings.API`, `invoice.API`, extended `backup.API`, `product.API` (CRUD/import/export), and `sale.API` (filters + void/refund).
+
 ### Testing & Tooling
 - Place unit tests alongside implementation packages (`*_test.go`) and use table-driven tests for domain logic. citeturn1search0
 - Add integration tests under `tests/` (or `internal/tests/`) for end-to-end Wails calls and database migrations.
@@ -99,6 +116,13 @@ frontend/
 ## Cross-Cutting Build Automation
 - Provide a `Makefile` wrapper for common tasks: `make dev` (Wails dev server + frontend), `make build` (production binary), `make lint`, and `make test`. This keeps the workflow consistent across platforms and CI. Wails CLI commands (`wails dev`, `wails build`) remain the single source of truth. citeturn11search0turn11search1turn10search1
 - Document environment variables (e.g., `GOEXPERIMENT`, `NODE_ENV`) inside the Make targets or `.env.example` files to simplify onboarding.
+
+### Release Packaging Checklist
+1. `npm ci && npm run build` – compile the React bundle with strict TS checks.
+2. `GOOS=<target> GOARCH=<arch> wails build -clean` – produce platform binaries; artifacts land under `build/bin/<target>`.
+3. Code-sign outputs (`signtool` on Windows, `codesign`/`notarize` on macOS) using credentials stored outside the repo.
+4. Zip installers with versioned naming (`ShopMate-v1.0.0-win64.zip`, etc.) and attach checksum manifests.
+5. Smoke test each build: launch, run POS flow, verify reports/export, confirm backups folder created.
 
 ## Combined Repository Snapshot
 

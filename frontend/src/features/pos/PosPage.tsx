@@ -1,16 +1,18 @@
 import {useEffect, useMemo, useState} from "react";
 import type {ProductView} from "@/features/products/api";
 import {fetchProducts} from "@/features/products/api";
-import {createSale} from "@/features/pos/api";
+import {buildCreateSaleRequest, createSale} from "@/features/pos/api";
 import type {Sale} from "@/features/pos/api";
 import {InvoiceDialog} from "@/features/pos/components/InvoiceDialog";
-import {formatCurrency, parseMoney} from "@/features/pos/utils";
+import {calculateTotals, formatCurrency, parseMoney, type TotalsInputLine} from "@/features/pos/utils";
 
 type CartLine = {
   product: ProductView;
   quantity: number;
   lineDiscount: string;
 };
+
+// TODO(#POS-42): Support applying customer-specific pricing tiers during cart calculations.
 
 const paymentOptions = ["Cash", "Card", "Wallet/UPI"] as const;
 
@@ -19,7 +21,11 @@ function generateSaleNumber(): string {
   return `INV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
 }
 
-export function PosPage() {
+type PosPageProps = {
+  onInventoryChanged?: () => Promise<void> | void;
+};
+
+export function PosPage({onInventoryChanged}: PosPageProps) {
   const [products, setProducts] = useState<ProductView[]>([]);
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -33,7 +39,12 @@ export function PosPage() {
 
   useEffect(() => {
     fetchProducts()
-      .then(items => setProducts(items))
+      .then(async items => {
+        setProducts(items);
+        if (onInventoryChanged) {
+          await onInventoryChanged();
+        }
+      })
       .catch(() => setError("Unable to load products."))
       .finally(() => setIsLoading(false));
   }, []);
@@ -48,7 +59,15 @@ export function PosPage() {
     ).slice(0, 20);
   }, [products, search]);
 
-  const totals = useMemo(() => calculateTotals(cart, parseMoney(orderDiscount)), [cart, orderDiscount]);
+  const totals = useMemo(() => {
+    const lines: TotalsInputLine[] = cart.map(line => ({
+      unitPriceCents: line.product.unitPriceCents,
+      quantity: line.quantity,
+      lineDiscountCents: Math.min(parseMoney(line.lineDiscount), line.product.unitPriceCents * line.quantity),
+      taxRatePercent: line.product.taxRate,
+    }));
+    return calculateTotals(lines, parseMoney(orderDiscount));
+  }, [cart, orderDiscount]);
 
   function handleAddToCart(product: ProductView) {
     setCart(prev => {
@@ -105,13 +124,16 @@ export function PosPage() {
         return;
       }
 
-      const sale = await createSale({
+      const request = buildCreateSaleRequest({
         saleNumber,
         customerName: customerName.trim(),
         paymentMethod,
         discountCents: orderDiscountCents,
+        note: "",
         lines,
       });
+
+      const sale = await createSale(request);
 
       setInvoice(sale);
       setCart([]);
@@ -121,6 +143,9 @@ export function PosPage() {
 
       const updated = await fetchProducts();
       setProducts(updated);
+      if (onInventoryChanged) {
+        await onInventoryChanged();
+      }
     } catch (err) {
       setError(describeError(err));
     } finally {
@@ -304,38 +329,4 @@ function describeError(error: unknown): string {
     return error.message;
   }
   return "Unable to create sale. Please try again.";
-}
-
-type Totals = {
-  subtotal: number;
-  orderDiscount: number;
-  tax: number;
-  total: number;
-};
-
-function calculateTotals(cart: CartLine[], orderDiscountCents: number): Totals {
-  let subtotal = 0;
-  let tax = 0;
-
-  for (const line of cart) {
-    if (line.quantity <= 0) {
-      continue;
-    }
-    const lineSubtotal = line.product.unitPriceCents * line.quantity;
-    const lineDiscount = Math.min(parseMoney(line.lineDiscount), lineSubtotal);
-    const taxable = lineSubtotal - lineDiscount;
-    const lineTax = Math.round(taxable * (line.product.taxRate / 100));
-    subtotal += lineSubtotal;
-    tax += lineTax;
-  }
-
-  const effectiveOrderDiscount = Math.min(orderDiscountCents, subtotal);
-  const total = subtotal - effectiveOrderDiscount + tax;
-
-  return {
-    subtotal,
-    orderDiscount: effectiveOrderDiscount,
-    tax,
-    total,
-  };
 }

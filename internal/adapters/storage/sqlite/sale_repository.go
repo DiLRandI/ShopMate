@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"shopmate/internal/domain/sale"
@@ -116,101 +117,76 @@ func (r *SaleRepository) Create(ctx context.Context, draft sale.Sale) (*sale.Sal
 	return &draft, nil
 }
 
-// Refund marks a sale as refunded and restores stock levels.
-func (r *SaleRepository) Refund(ctx context.Context, saleID int64) error {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin refund tx: %w", err)
-	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
+// GetByID retrieves a sale with its lines.
+func (r *SaleRepository) GetByID(ctx context.Context, saleID int64) (*sale.Sale, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, sale_no, ts, customer_name, payment_method, subtotal_cents, discount_cents, tax_cents, total_cents, status, note
+		FROM sales
+		WHERE id = ?`, saleID,
+	)
 
 	var (
-		saleNo string
-		status string
+		rec      sale.Sale
+		tsMillis int64
+		note     sql.NullString
+		customer sql.NullString
 	)
-	if err = tx.QueryRowContext(ctx, `SELECT sale_no, status FROM sales WHERE id = ?`, saleID).
-		Scan(&saleNo, &status); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("sale not found: %w", err)
-		}
-		return fmt.Errorf("load sale status: %w", err)
+	if err := row.Scan(
+		&rec.ID,
+		&rec.SaleNumber,
+		&tsMillis,
+		&customer,
+		&rec.PaymentMethod,
+		&rec.SubtotalCents,
+		&rec.DiscountCents,
+		&rec.TaxCents,
+		&rec.TotalCents,
+		&rec.Status,
+		&note,
+	); err != nil {
+		return nil, fmt.Errorf("load sale: %w", err)
+	}
+	rec.Timestamp = time.UnixMilli(tsMillis).UTC()
+	if customer.Valid {
+		rec.CustomerName = customer.String
+	}
+	if note.Valid {
+		rec.Note = note.String
 	}
 
-	if status == "Refunded" {
-		return nil
-	}
-
-	rows, err := tx.QueryContext(ctx, `SELECT product_id, qty FROM sale_items WHERE sale_id = ?`, saleID)
+	lines, err := r.loadLines(ctx, rec.ID)
 	if err != nil {
-		return fmt.Errorf("load sale items: %w", err)
+		return nil, err
 	}
-	defer rows.Close()
+	rec.Lines = lines
+	return &rec, nil
+}
 
-	type movement struct {
-		productID int64
-		qty       int64
-	}
+// Refund marks a sale as refunded and restores stock levels.
+func (r *SaleRepository) Refund(ctx context.Context, saleID int64) error {
+	return r.reverseSale(ctx, saleID, "Refunded", "Refund")
+}
 
-	var movements []movement
-	for rows.Next() {
-		var m movement
-		if err := rows.Scan(&m.productID, &m.qty); err != nil {
-			return fmt.Errorf("scan sale item: %w", err)
-		}
-		movements = append(movements, m)
-	}
-	if err := rows.Err(); err != nil {
+// Void marks a sale as voided and restores stock.
+func (r *SaleRepository) Void(ctx context.Context, saleID int64, note string) error {
+	if err := r.reverseSale(ctx, saleID, "Voided", "Void"); err != nil {
 		return err
 	}
-
-	if _, err = tx.ExecContext(ctx, `UPDATE sales SET status = 'Refunded' WHERE id = ?`, saleID); err != nil {
-		return fmt.Errorf("update sale status: %w", err)
-	}
-
-	nowMillis := time.Now().UnixMilli()
-
-	for _, m := range movements {
-		if _, err = tx.ExecContext(ctx, `
-			UPDATE products
-			SET current_qty = current_qty + ?
-			WHERE id = ?`,
-			m.qty, m.productID,
-		); err != nil {
-			return fmt.Errorf("restore stock: %w", err)
+	if strings.TrimSpace(note) != "" {
+		if _, err := r.db.ExecContext(ctx, `UPDATE sales SET note = ? WHERE id = ?`, note, saleID); err != nil {
+			return fmt.Errorf("store void note: %w", err)
 		}
-		if _, err = tx.ExecContext(ctx, `
-			INSERT INTO stock_movements (product_id, ts, delta, reason, ref)
-			VALUES (?, ?, ?, ?, ?)`,
-			m.productID,
-			nowMillis,
-			m.qty,
-			"Refund",
-			saleNo,
-		); err != nil {
-			return fmt.Errorf("insert stock reversal: %w", err)
-		}
-	}
-
-	if err = tx.Commit(); err != nil {
-		return fmt.Errorf("refund commit: %w", err)
 	}
 	return nil
 }
 
-// List retrieves sales created within the date range.
-func (r *SaleRepository) List(ctx context.Context, from, to time.Time) ([]sale.Sale, error) {
-	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, sale_no, ts, customer_name, payment_method, subtotal_cents, discount_cents, tax_cents, total_cents, status, note
-		FROM sales
-		WHERE ts BETWEEN ? AND ?
-		ORDER BY ts DESC`,
-		from.UnixMilli(),
-		to.UnixMilli(),
-	)
+// List retrieves sales matching the provided filter.
+func (r *SaleRepository) List(ctx context.Context, filter sale.Filter) ([]sale.Sale, error) {
+	filter.Normalize()
+
+	query, args := buildSalesQuery(filter)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query sales: %w", err)
 	}
@@ -308,4 +284,140 @@ func nullIfEmpty(value string) interface{} {
 		return nil
 	}
 	return value
+}
+
+func (r *SaleRepository) reverseSale(ctx context.Context, saleID int64, targetStatus, reason string) error {
+	if saleID <= 0 {
+		return errors.New("sale id required")
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin reverse tx: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	var (
+		saleNo string
+		status string
+	)
+	if err = tx.QueryRowContext(ctx, `SELECT sale_no, status FROM sales WHERE id = ?`, saleID).
+		Scan(&saleNo, &status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("sale not found: %w", err)
+		}
+		return fmt.Errorf("load sale status: %w", err)
+	}
+
+	if status == targetStatus {
+		return nil
+	}
+
+	rows, err := tx.QueryContext(ctx, `SELECT product_id, qty FROM sale_items WHERE sale_id = ?`, saleID)
+	if err != nil {
+		return fmt.Errorf("load sale items: %w", err)
+	}
+	defer rows.Close()
+
+	type movement struct {
+		productID int64
+		qty       int64
+	}
+
+	var movements []movement
+	for rows.Next() {
+		var m movement
+		if err := rows.Scan(&m.productID, &m.qty); err != nil {
+			return fmt.Errorf("scan sale item: %w", err)
+		}
+		movements = append(movements, m)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	if _, err = tx.ExecContext(ctx, `UPDATE sales SET status = ? WHERE id = ?`, targetStatus, saleID); err != nil {
+		return fmt.Errorf("update sale status: %w", err)
+	}
+
+	nowMillis := time.Now().UnixMilli()
+
+	for _, m := range movements {
+		if _, err = tx.ExecContext(ctx, `
+			UPDATE products
+			SET current_qty = current_qty + ?
+			WHERE id = ?`,
+			m.qty, m.productID,
+		); err != nil {
+			return fmt.Errorf("restore stock: %w", err)
+		}
+		if _, err = tx.ExecContext(ctx, `
+			INSERT INTO stock_movements (product_id, ts, delta, reason, ref)
+			VALUES (?, ?, ?, ?, ?)`,
+			m.productID,
+			nowMillis,
+			m.qty,
+			reason,
+			saleNo,
+		); err != nil {
+			return fmt.Errorf("insert stock reversal: %w", err)
+		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("reverse commit: %w", err)
+	}
+	return nil
+}
+
+func buildSalesQuery(filter sale.Filter) (string, []interface{}) {
+	var (
+		sb   strings.Builder
+		args []interface{}
+	)
+
+	sb.WriteString(`
+		SELECT id, sale_no, ts, customer_name, payment_method, subtotal_cents, discount_cents, tax_cents, total_cents, status, note
+		FROM sales
+		WHERE ts BETWEEN ? AND ?`)
+	args = append(args, filter.From.UnixMilli(), filter.To.UnixMilli())
+
+	if len(filter.PaymentMethods) > 0 {
+		sb.WriteString(" AND payment_method IN (")
+		for i, method := range filter.PaymentMethods {
+			if i > 0 {
+				sb.WriteString(",")
+			}
+			sb.WriteString("?")
+			args = append(args, method)
+		}
+		sb.WriteString(")")
+	}
+
+	if len(filter.Status) > 0 {
+		sb.WriteString(" AND status IN (")
+		for i, status := range filter.Status {
+			if i > 0 {
+				sb.WriteString(",")
+			}
+			sb.WriteString("?")
+			args = append(args, status)
+		}
+		sb.WriteString(")")
+	}
+
+	if q := strings.TrimSpace(filter.CustomerQuery); q != "" {
+		sb.WriteString(" AND (LOWER(COALESCE(customer_name,'')) LIKE ? OR LOWER(sale_no) LIKE ?)")
+		query := "%" + strings.ToLower(q) + "%"
+		args = append(args, query, query)
+	}
+
+	sb.WriteString(" ORDER BY ts DESC LIMIT ? OFFSET ?")
+	args = append(args, filter.Limit, filter.Offset)
+
+	return sb.String(), args
 }

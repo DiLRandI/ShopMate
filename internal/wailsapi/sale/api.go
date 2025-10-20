@@ -6,6 +6,7 @@ import (
 
 	domainsale "shopmate/internal/domain/sale"
 	saleservice "shopmate/internal/services/sale"
+	"shopmate/internal/wailsapi/response"
 )
 
 // API bridges sale services to the frontend.
@@ -40,8 +41,19 @@ type CreateSaleRequest struct {
 	Lines         []CreateSaleRequestLine `json:"lines"`
 }
 
+// ListSalesRequest describes filters for history retrieval.
+type ListSalesRequest struct {
+	FromISO        string   `json:"from"`
+	ToISO          string   `json:"to"`
+	PaymentMethods []string `json:"paymentMethods"`
+	Statuses       []string `json:"statuses"`
+	CustomerQuery  string   `json:"customerQuery"`
+	Limit          int      `json:"limit"`
+	Offset         int      `json:"offset"`
+}
+
 // CreateSale records a sale and returns the saved invoice.
-func (api *API) CreateSale(req CreateSaleRequest) (*domainsale.Sale, error) {
+func (api *API) CreateSale(req CreateSaleRequest) response.Envelope[domainsale.Sale] {
 	ctx := api.contextSource()
 	lines := make([]saleservice.CreateRequestLine, 0, len(req.Lines))
 	for _, line := range req.Lines {
@@ -52,7 +64,7 @@ func (api *API) CreateSale(req CreateSaleRequest) (*domainsale.Sale, error) {
 		})
 	}
 
-	return api.service.Create(ctx, saleservice.CreateRequest{
+	sale, err := api.service.Create(ctx, saleservice.CreateRequest{
 		SaleNumber:    req.SaleNumber,
 		CustomerName:  req.CustomerName,
 		PaymentMethod: req.PaymentMethod,
@@ -60,24 +72,64 @@ func (api *API) CreateSale(req CreateSaleRequest) (*domainsale.Sale, error) {
 		Note:          req.Note,
 		Lines:         lines,
 	})
+	if err != nil {
+		return response.Failure[domainsale.Sale](err.Error())
+	}
+	return response.Success(*sale)
 }
 
-// ListSales returns sales between ISO-8601 date strings (inclusive range).
-func (api *API) ListSales(fromISO, toISO string) ([]domainsale.Sale, error) {
+// ListSales returns sales based on the provided filters.
+func (api *API) ListSales(req ListSalesRequest) response.Envelope[[]domainsale.Sale] {
 	ctx := api.contextSource()
-	from, err := time.Parse(time.RFC3339, fromISO)
-	if err != nil {
-		return nil, err
+	var filter domainsale.Filter
+	if req.FromISO != "" {
+		if parsed, err := time.Parse(time.RFC3339, req.FromISO); err == nil {
+			filter.From = parsed
+		}
 	}
-	to, err := time.Parse(time.RFC3339, toISO)
-	if err != nil {
-		return nil, err
+	if req.ToISO != "" {
+		if parsed, err := time.Parse(time.RFC3339, req.ToISO); err == nil {
+			filter.To = parsed
+		}
 	}
-	return api.service.List(ctx, from, to)
+	filter.PaymentMethods = req.PaymentMethods
+	filter.Status = req.Statuses
+	filter.CustomerQuery = req.CustomerQuery
+	filter.Limit = req.Limit
+	filter.Offset = req.Offset
+
+	sales, err := api.service.List(ctx, filter)
+	if err != nil {
+		return response.Failure[[]domainsale.Sale](err.Error())
+	}
+	return response.Success(sales)
+}
+
+// GetSale returns a sale by id.
+func (api *API) GetSale(id int64) response.Envelope[domainsale.Sale] {
+	ctx := api.contextSource()
+	sale, err := api.service.Get(ctx, id)
+	if err != nil {
+		return response.Failure[domainsale.Sale](err.Error())
+	}
+	return response.Success(*sale)
 }
 
 // RefundSale reverts a sale and restores inventory.
-func (api *API) RefundSale(saleID int64) error {
+
+func (api *API) RefundSale(saleID int64) response.Envelope[struct{}] {
 	ctx := api.contextSource()
-	return api.service.Refund(ctx, saleID)
+	if err := api.service.Refund(ctx, saleID); err != nil {
+		return response.Failure[struct{}](err.Error())
+	}
+	return response.SuccessNoData[struct{}]()
+}
+
+// VoidSale voids a sale and restores inventory.
+func (api *API) VoidSale(saleID int64, note string) response.Envelope[struct{}] {
+	ctx := api.contextSource()
+	if err := api.service.Void(ctx, saleID, note); err != nil {
+		return response.Failure[struct{}](err.Error())
+	}
+	return response.SuccessNoData[struct{}]()
 }

@@ -5,7 +5,14 @@ import {AppShell} from "./AppShell";
 describe("AppShell", () => {
   it("renders heading", () => {
     render(
-      <AppShell activePage="inventory" onNavigate={() => undefined}>
+      <AppShell
+        navItems={[{key: "dashboard", label: "Products", shortcut: "Alt+1"}]}
+        activePage="dashboard"
+        onNavigate={() => undefined}
+        lowStockCount={0}
+        isHighContrast={false}
+        onToggleHighContrast={() => undefined}
+      >
         content
       </AppShell>
     );

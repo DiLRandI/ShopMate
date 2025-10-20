@@ -3,6 +3,7 @@ build/
 bin/
 .wails-tmp/
 data/*.sqlite
+data/*.sqlite*
 data/backups/
 
 # Frontend dependencies and bundles

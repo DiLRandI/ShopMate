@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"shopmate/internal/domain/backup"
 )
@@ -34,16 +35,20 @@ func (r *BackupRepository) Record(ctx context.Context, filename string, size int
 	}
 
 	row := r.db.QueryRowContext(ctx, `SELECT id, filename, size_bytes, created_at FROM backups WHERE id = ?`, id)
-	var rec backup.Record
-	if err := row.Scan(&rec.ID, &rec.Filename, &rec.SizeBytes, &rec.CreatedAt); err != nil {
+	var (
+		rec     backup.Record
+		created int64
+	)
+	if err := row.Scan(&rec.ID, &rec.Filename, &rec.SizeBytes, &created); err != nil {
 		return nil, fmt.Errorf("backup scan: %w", err)
 	}
+	rec.CreatedAt = time.UnixMilli(created).UTC()
 	return &rec, nil
 }
 
 // Latest fetches most recent backups up to limit.
 func (r *BackupRepository) Latest(ctx context.Context, limit int) ([]backup.Record, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT id, filename, size_bytes, created_at FROM backups ORDER BY created_at DESC LIMIT ?`, limit)
+	rows, err := r.db.QueryContext(ctx, `SELECT id, filename, size_bytes, created_at FROM backups ORDER BY created_at DESC, id DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query backups: %w", err)
 	}
@@ -51,13 +56,58 @@ func (r *BackupRepository) Latest(ctx context.Context, limit int) ([]backup.Reco
 
 	var records []backup.Record
 	for rows.Next() {
-		var rec backup.Record
-		if err := rows.Scan(&rec.ID, &rec.Filename, &rec.SizeBytes, &rec.CreatedAt); err != nil {
+		var (
+			rec     backup.Record
+			created int64
+		)
+		if err := rows.Scan(&rec.ID, &rec.Filename, &rec.SizeBytes, &created); err != nil {
 			return nil, fmt.Errorf("scan backup: %w", err)
 		}
+		rec.CreatedAt = time.UnixMilli(created).UTC()
 		records = append(records, rec)
 	}
 	return records, rows.Err()
+}
+
+// Oldest returns the oldest backup records up to limit.
+func (r *BackupRepository) Oldest(ctx context.Context, limit int) ([]backup.Record, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id, filename, size_bytes, created_at FROM backups ORDER BY created_at ASC, id ASC LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query oldest backups: %w", err)
+	}
+	defer rows.Close()
+
+	var records []backup.Record
+	for rows.Next() {
+		var (
+			rec     backup.Record
+			created int64
+		)
+		if err := rows.Scan(&rec.ID, &rec.Filename, &rec.SizeBytes, &created); err != nil {
+			return nil, fmt.Errorf("scan oldest backup: %w", err)
+		}
+		rec.CreatedAt = time.UnixMilli(created).UTC()
+		records = append(records, rec)
+	}
+	return records, rows.Err()
+}
+
+// Delete removes a backup row by id.
+func (r *BackupRepository) Delete(ctx context.Context, id int64) error {
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM backups WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("delete backup: %w", err)
+	}
+	return nil
+}
+
+// Count returns the total number of backup records.
+func (r *BackupRepository) Count(ctx context.Context) (int, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM backups`)
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return 0, fmt.Errorf("count backups: %w", err)
+	}
+	return count, nil
 }
 
 // RetentionDays retrieves the configured retention window from the database.

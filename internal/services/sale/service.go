@@ -14,8 +14,10 @@ import (
 // Repository abstraction enables testing.
 type repository interface {
 	Create(ctx context.Context, draft domainsale.Sale) (*domainsale.Sale, error)
-	List(ctx context.Context, from, to time.Time) ([]domainsale.Sale, error)
+	GetByID(ctx context.Context, saleID int64) (*domainsale.Sale, error)
+	List(ctx context.Context, filter domainsale.Filter) ([]domainsale.Sale, error)
 	Refund(ctx context.Context, saleID int64) error
+	Void(ctx context.Context, saleID int64, note string) error
 }
 
 // Service orchestrates sale workflows.
@@ -113,12 +115,18 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (*domainsale.Sa
 	return created, nil
 }
 
-// List returns sales between dates.
-func (s *Service) List(ctx context.Context, from, to time.Time) ([]domainsale.Sale, error) {
-	if from.After(to) {
-		return nil, errors.New("invalid date range")
+// List returns sales matching the provided filter.
+func (s *Service) List(ctx context.Context, filter domainsale.Filter) ([]domainsale.Sale, error) {
+	filter.Normalize()
+	return s.repo.List(ctx, filter)
+}
+
+// Get retrieves a sale by id.
+func (s *Service) Get(ctx context.Context, saleID int64) (*domainsale.Sale, error) {
+	if saleID <= 0 {
+		return nil, errors.New("sale id required")
 	}
-	return s.repo.List(ctx, from, to)
+	return s.repo.GetByID(ctx, saleID)
 }
 
 // Refund reverts a sale and restores stock.
@@ -127,6 +135,14 @@ func (s *Service) Refund(ctx context.Context, saleID int64) error {
 		return errors.New("sale id required")
 	}
 	return s.repo.Refund(ctx, saleID)
+}
+
+// Void cancels a sale prior to completion.
+func (s *Service) Void(ctx context.Context, saleID int64, note string) error {
+	if saleID <= 0 {
+		return errors.New("sale id required")
+	}
+	return s.repo.Void(ctx, saleID, note)
 }
 
 func (s *Service) validateCreateRequest(req CreateRequest) error {
@@ -156,7 +172,7 @@ func (s *Service) validateCreateRequest(req CreateRequest) error {
 	return nil
 }
 
-func computeTax(amountCents int64, rateBasisPoints int64) int64 {
+func computeTax(amountCents, rateBasisPoints int64) int64 {
 	if rateBasisPoints <= 0 || amountCents <= 0 {
 		return 0
 	}

@@ -26,6 +26,14 @@ Vendor purchase orders and GRNs
 
 Complex taxation rules beyond flat/item tax rates
 
+## Status Update (2025-10-20)
+
+- ✅ Inventory management supports full CRUD operations, CSV import/export, and manual stock adjustments.
+- ✅ POS flow issues invoices with HTML/PDF output, wraps all bridge calls in `{ok,data,error}` envelopes, and reflects real-time stock changes.
+- ✅ Sales history, reporting dashboards, and backup scheduling (midnight + on exit) are implemented end-to-end.
+- ✅ Settings screens persist shop profile, localization preferences, and owner PIN (hashed) with verification helpers.
+- ✅ High-contrast theme toggle, keyboard shortcuts (Alt+1..5, Alt+H), onboarding wizard, and low-stock status chip shipped across the desktop shell.
+
 1) Product Objectives & Success Metrics
 
 Objectives
