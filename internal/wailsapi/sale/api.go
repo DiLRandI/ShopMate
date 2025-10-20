@@ -36,6 +36,7 @@ type CreateSaleRequest struct {
 	CustomerName  string                  `json:"customerName"`
 	PaymentMethod string                  `json:"paymentMethod"`
 	DiscountCents int64                   `json:"discountCents"`
+	Note          string                  `json:"note"`
 	Lines         []CreateSaleRequestLine `json:"lines"`
 }
 
@@ -56,6 +57,7 @@ func (api *API) CreateSale(req CreateSaleRequest) (*domainsale.Sale, error) {
 		CustomerName:  req.CustomerName,
 		PaymentMethod: req.PaymentMethod,
 		DiscountCents: req.DiscountCents,
+		Note:          req.Note,
 		Lines:         lines,
 	})
 }

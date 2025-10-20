@@ -36,7 +36,12 @@ export function InvoiceDialog({sale, onClose}: InvoiceDialogProps) {
               </tr>
             </thead>
             <tbody>
-              {sale.lines.map(line => (
+              {sale.lines.map(line => {
+                const discountCents = (line as unknown as {lineDiscountCents?: number; discountCents?: number}).lineDiscountCents ??
+                  (line as unknown as {lineDiscountCents?: number; discountCents?: number}).discountCents ?? 0;
+                const taxCents = (line as unknown as {lineTaxCents?: number; taxCents?: number}).lineTaxCents ??
+                  (line as unknown as {lineTaxCents?: number; taxCents?: number}).taxCents ?? 0;
+                return (
                 <tr key={`${line.productId}-${line.sku}`}>
                   <td>
                     <strong>{line.productName}</strong>
@@ -44,11 +49,12 @@ export function InvoiceDialog({sale, onClose}: InvoiceDialogProps) {
                   </td>
                   <td>{line.quantity}</td>
                   <td>{formatCurrency(line.unitPriceCents)}</td>
-                  <td>{formatCurrency(line.discountCents)}</td>
-                  <td>{formatCurrency(line.taxCents)}</td>
+                  <td>{formatCurrency(discountCents)}</td>
+                  <td>{formatCurrency(taxCents)}</td>
                   <td>{formatCurrency(line.lineTotalCents)}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

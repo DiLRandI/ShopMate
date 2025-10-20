@@ -21,13 +21,14 @@ func NewProductRepository(db *sql.DB) *ProductRepository {
 func (r *ProductRepository) Create(ctx context.Context, input product.CreateInput) (*product.Product, error) {
 	res, err := r.db.ExecContext(ctx,
 		`INSERT INTO products
-			(name, sku, unit_price_cents, tax_rate, stock_quantity, reorder_level, notes)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		input.Name,
+			(sku, name, category, unit_price_cents, tax_rate_bp, current_qty, reorder_level, notes)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		input.SKU,
+		input.Name,
+		input.Category,
 		input.UnitPriceCents,
-		input.TaxRate,
-		input.StockQuantity,
+		input.TaxRateBasisPoints,
+		input.CurrentQty,
 		input.ReorderLevel,
 		input.Notes,
 	)
@@ -51,7 +52,7 @@ func (r *ProductRepository) GetByID(ctx context.Context, id int64) (*product.Pro
 // List returns all products sorted by name ascending.
 func (r *ProductRepository) List(ctx context.Context) ([]product.Product, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, sku, unit_price_cents, tax_rate, stock_quantity, reorder_level, notes
+		`SELECT id, sku, name, category, unit_price_cents, tax_rate_bp, current_qty, reorder_level, notes
 		 FROM products
 		 ORDER BY name ASC`)
 	if err != nil {
@@ -63,7 +64,7 @@ func (r *ProductRepository) List(ctx context.Context) ([]product.Product, error)
 
 	for rows.Next() {
 		var p product.Product
-		if err := rows.Scan(&p.ID, &p.Name, &p.SKU, &p.UnitPriceCents, &p.TaxRate, &p.StockQuantity, &p.ReorderLevel, &p.Notes); err != nil {
+		if err := rows.Scan(&p.ID, &p.SKU, &p.Name, &p.Category, &p.UnitPriceCents, &p.TaxRateBasisPoints, &p.CurrentQty, &p.ReorderLevel, &p.Notes); err != nil {
 			return nil, err
 		}
 		products = append(products, p)
@@ -79,9 +80,9 @@ func (r *ProductRepository) List(ctx context.Context) ([]product.Product, error)
 func (r *ProductRepository) getByID(ctx context.Context, id int64) (*product.Product, error) {
 	var p product.Product
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, name, sku, unit_price_cents, tax_rate, stock_quantity, reorder_level, notes
+		`SELECT id, sku, name, category, unit_price_cents, tax_rate_bp, current_qty, reorder_level, notes
 		 FROM products WHERE id = ?`, id,
-	).Scan(&p.ID, &p.Name, &p.SKU, &p.UnitPriceCents, &p.TaxRate, &p.StockQuantity, &p.ReorderLevel, &p.Notes)
+	).Scan(&p.ID, &p.SKU, &p.Name, &p.Category, &p.UnitPriceCents, &p.TaxRateBasisPoints, &p.CurrentQty, &p.ReorderLevel, &p.Notes)
 	if err != nil {
 		return nil, err
 	}

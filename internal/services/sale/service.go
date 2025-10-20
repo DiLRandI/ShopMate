@@ -43,6 +43,7 @@ type CreateRequest struct {
 	PaymentMethod string
 	Lines         []CreateRequestLine
 	DiscountCents int64
+	Note          string
 }
 
 // Create registers a sale and decrements inventory.
@@ -66,18 +67,21 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (*domainsale.Sa
 			return nil, errors.New("line discount exceeds subtotal")
 		}
 
-		lineTax := computeTax(lineSubtotal-reqLine.DiscountCents, product.TaxRate)
-		lineTotal := lineSubtotal - reqLine.DiscountCents + lineTax
+		taxableBase := lineSubtotal - reqLine.DiscountCents
+		lineTax := computeTax(taxableBase, product.TaxRateBasisPoints)
+		lineTotal := taxableBase + lineTax
 
 		lines = append(lines, domainsale.Line{
-			ProductID:      product.ID,
-			ProductName:    product.Name,
-			SKU:            product.SKU,
-			Quantity:       reqLine.Quantity,
-			UnitPriceCents: product.UnitPriceCents,
-			DiscountCents:  reqLine.DiscountCents,
-			TaxCents:       lineTax,
-			LineTotalCents: lineTotal,
+			ProductID:          product.ID,
+			ProductName:        product.Name,
+			SKU:                product.SKU,
+			Quantity:           reqLine.Quantity,
+			UnitPriceCents:     product.UnitPriceCents,
+			TaxRateBasisPoints: product.TaxRateBasisPoints,
+			LineSubtotalCents:  lineSubtotal,
+			LineDiscountCents:  reqLine.DiscountCents,
+			LineTaxCents:       lineTax,
+			LineTotalCents:     lineTotal,
 		})
 
 		subtotal += lineSubtotal
@@ -90,13 +94,15 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (*domainsale.Sa
 
 	draft := domainsale.Sale{
 		SaleNumber:    req.SaleNumber,
+		Timestamp:     time.Now(),
 		CustomerName:  req.CustomerName,
 		SubtotalCents: subtotal,
 		DiscountCents: req.DiscountCents,
 		TaxCents:      taxTotal,
 		TotalCents:    subtotal - req.DiscountCents + taxTotal,
 		PaymentMethod: req.PaymentMethod,
-		Status:        "COMPLETED",
+		Status:        "Completed",
+		Note:          req.Note,
 		Lines:         lines,
 	}
 
@@ -150,11 +156,11 @@ func (s *Service) validateCreateRequest(req CreateRequest) error {
 	return nil
 }
 
-func computeTax(amountCents int64, rate float64) int64 {
-	if rate <= 0 {
+func computeTax(amountCents int64, rateBasisPoints int64) int64 {
+	if rateBasisPoints <= 0 || amountCents <= 0 {
 		return 0
 	}
-	return int64(math.Round(float64(amountCents) * rate / 100.0))
+	return int64(math.Round(float64(amountCents) * float64(rateBasisPoints) / 10000.0))
 }
 
 var _ repository = (*sqlite.SaleRepository)(nil)

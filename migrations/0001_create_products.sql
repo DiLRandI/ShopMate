@@ -1,20 +1,26 @@
--- Creates the initial products table for inventory management.
 CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
     sku TEXT NOT NULL UNIQUE,
-    unit_price_cents INTEGER NOT NULL,
-    tax_rate REAL NOT NULL DEFAULT 0,
-    stock_quantity INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL,
+    category TEXT,
+    unit_price_cents INTEGER NOT NULL DEFAULT 0,
+    tax_rate_bp INTEGER NOT NULL DEFAULT 0,
+    current_qty INTEGER NOT NULL DEFAULT 0,
     reorder_level INTEGER NOT NULL DEFAULT 0,
     notes TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s', 'now') AS INTEGER) * 1000),
+    updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s', 'now') AS INTEGER) * 1000)
 );
 
-CREATE TRIGGER IF NOT EXISTS trg_products_updated_at
+CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
+
+CREATE TRIGGER IF NOT EXISTS trg_products_touch_updated_at
 AFTER UPDATE ON products
 FOR EACH ROW
+WHEN NEW.updated_at <= OLD.updated_at
 BEGIN
-    UPDATE products SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+    UPDATE products
+    SET updated_at = (CAST(strftime('%s', 'now') AS INTEGER) * 1000)
+    WHERE id = NEW.id;
 END;

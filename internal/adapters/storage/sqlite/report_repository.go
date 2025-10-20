@@ -23,12 +23,14 @@ func NewReportRepository(db *sql.DB) *ReportRepository {
 func (r *ReportRepository) DailySummary(ctx context.Context, date time.Time) (*report.DailySummary, error) {
 	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	end := start.Add(24 * time.Hour)
+	startMillis := start.UnixMilli()
+	endMillis := end.UnixMilli()
 
 	var summary report.DailySummary
 	summary.Date = start
 
 	row := r.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(total_cents),0), COUNT(id), COALESCE(SUM(tax_cents),0)
-		FROM sales WHERE status = 'COMPLETED' AND created_at BETWEEN ? AND ?`, start, end)
+		FROM sales WHERE status = 'Completed' AND ts >= ? AND ts < ?`, startMillis, endMillis)
 
 	var total, count, tax int64
 	if err := row.Scan(&total, &count, &tax); err != nil {
@@ -46,13 +48,17 @@ func (r *ReportRepository) DailySummary(ctx context.Context, date time.Time) (*r
 
 // TopProducts returns the best selling products for the date range.
 func (r *ReportRepository) TopProducts(ctx context.Context, from, to time.Time, limit int) ([]report.TopProduct, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT product_id, MAX(product_name), SUM(quantity), SUM(line_total_cents)
+	fromMillis := from.UnixMilli()
+	toMillis := to.UnixMilli()
+
+	rows, err := r.db.QueryContext(ctx, `SELECT sale_items.product_id, COALESCE(MAX(products.name), ''), SUM(sale_items.qty), SUM(sale_items.line_total_cents)
 		FROM sale_items
 		INNER JOIN sales ON sales.id = sale_items.sale_id
-		WHERE sales.status = 'COMPLETED' AND sales.created_at BETWEEN ? AND ?
-		GROUP BY product_id
-		ORDER BY SUM(line_total_cents) DESC
-		LIMIT ?`, from, to, limit)
+		LEFT JOIN products ON products.id = sale_items.product_id
+		WHERE sales.status = 'Completed' AND sales.ts >= ? AND sales.ts < ?
+		GROUP BY sale_items.product_id
+		ORDER BY SUM(sale_items.line_total_cents) DESC
+		LIMIT ?`, fromMillis, toMillis, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query top products: %w", err)
 	}

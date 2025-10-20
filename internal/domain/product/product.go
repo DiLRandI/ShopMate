@@ -7,25 +7,27 @@ import (
 
 // Product represents a sellable item tracked in inventory.
 type Product struct {
-	ID             int64   `json:"id"`
-	Name           string  `json:"name"`
-	SKU            string  `json:"sku"`
-	UnitPriceCents int64   `json:"unitPriceCents"`
-	TaxRate        float64 `json:"taxRate"`
-	StockQuantity  int64   `json:"stockQuantity"`
-	ReorderLevel   int64   `json:"reorderLevel"`
-	Notes          string  `json:"notes"`
+	ID                 int64  `json:"id"`
+	Name               string `json:"name"`
+	SKU                string `json:"sku"`
+	Category           string `json:"category"`
+	UnitPriceCents     int64  `json:"unitPriceCents"`
+	TaxRateBasisPoints int64  `json:"taxRateBasisPoints"`
+	CurrentQty         int64  `json:"currentQty"`
+	ReorderLevel       int64  `json:"reorderLevel"`
+	Notes              string `json:"notes"`
 }
 
 // CreateInput describes the fields required to add a product.
 type CreateInput struct {
-	Name           string
-	SKU            string
-	UnitPriceCents int64
-	TaxRate        float64
-	StockQuantity  int64
-	ReorderLevel   int64
-	Notes          string
+	Name               string
+	SKU                string
+	Category           string
+	UnitPriceCents     int64
+	TaxRateBasisPoints int64
+	CurrentQty         int64
+	ReorderLevel       int64
+	Notes              string
 }
 
 // Validate ensures the product input satisfies basic constraints.
@@ -39,11 +41,11 @@ func (in CreateInput) Validate() error {
 	if in.UnitPriceCents < 0 {
 		return fmt.Errorf("unit price must be >= 0 (got %d)", in.UnitPriceCents)
 	}
-	if in.TaxRate < 0 {
-		return fmt.Errorf("tax rate must be >= 0 (got %f)", in.TaxRate)
+	if in.TaxRateBasisPoints < 0 {
+		return fmt.Errorf("tax rate must be >= 0 (got %d)", in.TaxRateBasisPoints)
 	}
-	if in.StockQuantity < 0 {
-		return fmt.Errorf("stock quantity must be >= 0 (got %d)", in.StockQuantity)
+	if in.CurrentQty < 0 {
+		return fmt.Errorf("current quantity must be >= 0 (got %d)", in.CurrentQty)
 	}
 	if in.ReorderLevel < 0 {
 		return fmt.Errorf("reorder level must be >= 0 (got %d)", in.ReorderLevel)
