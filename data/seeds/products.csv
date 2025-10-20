@@ -1,0 +1,5 @@
+sku,name,category,unit_price,tax_rate_percent,current_qty,reorder_level,notes
+SKU-0001,Classic Mug,Home Goods,12.50,5,24,6,Top-selling ceramic mug
+SKU-0002,Organic Beans 500g,Grocery,8.25,0,48,12,House blend whole beans
+SKU-0003,Eco Tote Bag,Accessories,14.00,5,30,5,Reusable cotton tote
+SKU-0004,Desk Notebook A5,Stationery,6.75,5,60,10,Dot grid pages

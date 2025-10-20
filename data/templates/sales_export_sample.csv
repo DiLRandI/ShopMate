@@ -1,0 +1,2 @@
+sale_no,ts_iso,customer_name,payment_method,subtotal,tax,discount,total,status
+INV-20251019-001,2025-10-19T17:45:00Z,Walk-in,Cash,129.75,6.49,5.00,131.24,Completed

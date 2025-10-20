@@ -12,7 +12,7 @@ import (
 	"shopmate/internal/domain/backup"
 )
 
-const defaultRetention = 7
+const defaultRetention = 30
 
 // Service manages database backup lifecycle.
 type Service struct {
@@ -25,19 +25,36 @@ type Service struct {
 // NewService constructs a backup service rooted at the database path.
 func NewService(repo *sqlite.BackupRepository, dbPath string) *Service {
 	dir := filepath.Join(filepath.Dir(dbPath), "backups")
-	return &Service{
+	service := &Service{
 		repo:      repo,
 		dbPath:    dbPath,
 		backupDir: dir,
 		retention: defaultRetention,
 	}
+
+	if repo != nil {
+		if days, err := repo.RetentionDays(context.Background()); err == nil && days > 0 {
+			service.retention = days
+		}
+	}
+
+	return service
 }
 
 // SetRetention configures how many backup files to keep on disk.
-func (s *Service) SetRetention(count int) {
-	if count > 0 {
-		s.retention = count
+func (s *Service) SetRetention(count int) error {
+	if count <= 0 {
+		return fmt.Errorf("retention must be greater than zero (got %d)", count)
 	}
+
+	if s.repo != nil {
+		if err := s.repo.UpdateRetentionDays(context.Background(), count); err != nil {
+			return err
+		}
+	}
+
+	s.retention = count
+	return nil
 }
 
 // Create snapshot copies the SQLite db into backupDir and records metadata.

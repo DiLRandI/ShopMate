@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"shopmate/internal/domain/backup"
@@ -12,6 +13,8 @@ import (
 type BackupRepository struct {
 	db *sql.DB
 }
+
+const backupSettingsRowID = 1
 
 // NewBackupRepository creates a new backup repository.
 func NewBackupRepository(db *sql.DB) *BackupRepository {
@@ -55,4 +58,42 @@ func (r *BackupRepository) Latest(ctx context.Context, limit int) ([]backup.Reco
 		records = append(records, rec)
 	}
 	return records, rows.Err()
+}
+
+// RetentionDays retrieves the configured retention window from the database.
+func (r *BackupRepository) RetentionDays(ctx context.Context) (int, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT retention_days FROM backup_settings WHERE id = ?`, backupSettingsRowID)
+
+	var retention sql.NullInt64
+	if err := row.Scan(&retention); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("scan backup retention: %w", err)
+	}
+
+	if !retention.Valid || retention.Int64 <= 0 {
+		return 0, nil
+	}
+
+	return int(retention.Int64), nil
+}
+
+// UpdateRetentionDays persists the retention window.
+func (r *BackupRepository) UpdateRetentionDays(ctx context.Context, days int) error {
+	if days <= 0 {
+		return fmt.Errorf("retention days must be > 0 (got %d)", days)
+	}
+
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO backup_settings (id, retention_days, updated_at)
+		VALUES (?, ?, (CAST(strftime('%s', 'now') AS INTEGER) * 1000))
+		ON CONFLICT(id) DO UPDATE SET
+			retention_days = excluded.retention_days,
+			updated_at = excluded.updated_at
+	`, backupSettingsRowID, days)
+	if err != nil {
+		return fmt.Errorf("upsert backup retention: %w", err)
+	}
+	return nil
 }

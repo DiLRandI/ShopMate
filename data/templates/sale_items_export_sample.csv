@@ -1,0 +1,3 @@
+sale_no,sku,product_name,qty,unit_price,line_discount,line_tax,line_total
+INV-20251019-001,SKU-0001,Classic Mug,2,12.50,0.00,1.25,26.25
+INV-20251019-001,SKU-0004,Desk Notebook A5,3,6.75,0.00,1.01,21.26

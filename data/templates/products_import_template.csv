@@ -1,0 +1,2 @@
+sku,name,category,unit_price,tax_rate_percent,current_qty,reorder_level,notes
+SKU-1001,Sample Coffee Blend,Grocery,11.95,5,25,8,Medium roast arabica

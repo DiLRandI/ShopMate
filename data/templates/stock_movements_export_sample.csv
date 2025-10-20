@@ -1,0 +1,4 @@
+ts_iso,sku,product_name,delta,reason,ref
+2025-10-19T17:45:00Z,SKU-0001,Classic Mug,-2,Sale,INV-20251019-001
+2025-10-19T17:45:00Z,SKU-0004,Desk Notebook A5,-3,Sale,INV-20251019-001
+2025-10-20T08:00:00Z,SKU-0001,Classic Mug,10,Restock,PO-20251020-01

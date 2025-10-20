@@ -1,8 +1,9 @@
 # Go artifacts
 build/
 bin/
-data/
 .wails-tmp/
+data/*.sqlite
+data/backups/
 
 # Frontend dependencies and bundles
 frontend/node_modules/

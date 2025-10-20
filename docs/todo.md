@@ -2,9 +2,9 @@
 
 ## Foundation & Schema
 - [x] Align SQLite schema with PRD (money in cents, tax basis points, `ts` columns, settings KV, indexes, triggers)
-- [ ] Add migration for WAL defaults, backup tables, and retention metadata
-- [ ] Embed migration runner and ensure idempotent startup
-- [ ] Provide sample seed data and CSV templates under `data/` per contracts
+- [x] Add migration for WAL defaults, backup tables, and retention metadata
+- [x] Embed migration runner and ensure idempotent startup
+- [x] Provide sample seed data and CSV templates under `data/` per contracts
 
 ## Backend Services & APIs
 - [ ] Implement product CRUD incl. bulk CSV import/export and stock adjustments
