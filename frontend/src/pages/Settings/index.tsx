@@ -200,10 +200,10 @@ export function SettingsPage({initialProfile = null, initialPreferences = null, 
           <label className="settings-checkbox">
             <input
               type="checkbox"
-              checked={preferences.highContrast}
-              onChange={event => setPreferences({...preferences, highContrast: event.target.checked})}
+              checked={preferences.darkMode}
+              onChange={event => setPreferences({...preferences, darkMode: event.target.checked})}
             />
-            High contrast mode
+            Dark theme
           </label>
           <label className="settings-checkbox">
             <input

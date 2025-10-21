@@ -52,13 +52,13 @@ func TestPreferencesRoundTrip(t *testing.T) {
 	repo := sqlite.NewSettingsRepository(store.DB())
 	service := settingssvc.NewService(repo)
 
-	prefs := domainsettings.Preferences{Locale: "en-US", HighContrast: true, EnableTelemetry: true}
+	prefs := domainsettings.Preferences{Locale: "en-US", DarkMode: true, EnableTelemetry: true}
 	saved, err := service.SavePreferences(context.Background(), prefs)
 	if err != nil {
 		t.Fatalf("save preferences: %v", err)
 	}
-	if !saved.HighContrast {
-		t.Fatalf("expected high contrast true")
+	if !saved.DarkMode {
+		t.Fatalf("expected dark mode true")
 	}
 
 	loaded, err := service.Preferences(context.Background())
@@ -67,5 +67,8 @@ func TestPreferencesRoundTrip(t *testing.T) {
 	}
 	if loaded.Locale != "en-US" {
 		t.Fatalf("unexpected locale %s", loaded.Locale)
+	}
+	if !loaded.DarkMode {
+		t.Fatalf("expected dark mode persisted")
 	}
 }

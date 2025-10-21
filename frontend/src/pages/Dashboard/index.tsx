@@ -130,26 +130,41 @@ export function DashboardPage({onInventoryChanged}: DashboardPageProps) {
   }
 
   if (isLoading) {
-    return <p>Loading inventory…</p>;
+    return <p className="text-center text-sm text-slate-500 animate-pulse">Loading inventory…</p>;
   }
 
   if (loadError) {
-    return <p className="product-form__error">{loadError}</p>;
+    return <p className="product-form__error text-center text-sm text-rose-600">{loadError}</p>;
   }
 
   return (
-    <div className="inventory-pane">
-      <section>
-        <div className="inventory-pane__header">
-          <h2>New Product</h2>
-          <div className="inventory-actions">
-            <button type="button" onClick={handleExport}>Export CSV</button>
-            <button type="button" onClick={triggerImport}>Import CSV</button>
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
+      <section className="flex flex-col gap-5 rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">New Product</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Quickly add single items or bulk import from CSV.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleExport}
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800"
+            >
+              Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={triggerImport}
+              className="rounded-full bg-gradient-to-r from-brand-primary to-brand-accent px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-brand-primary/60"
+            >
+              Import CSV
+            </button>
             <input
               ref={fileInputRef}
               type="file"
               accept=".csv"
-              style={{display: "none"}}
+              className="hidden"
               onChange={event => {
                 const file = event.target.files?.[0];
                 if (file) {
@@ -161,11 +176,21 @@ export function DashboardPage({onInventoryChanged}: DashboardPageProps) {
           </div>
         </div>
         <ProductForm onCreate={handleCreate} isSubmitting={isSubmitting} error={submitError}/>
-        {importFeedback && <p className="inventory-feedback" role="status">{importFeedback}</p>}
+        {importFeedback && (
+          <p className="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200" role="status">
+            {importFeedback}
+          </p>
+        )}
       </section>
-      <section>
-        <h2>Inventory</h2>
-        <ProductTable products={products} onAdjustStock={handleStockAdjustment}/>
+
+      <section className="flex flex-col gap-4 rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Inventory</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Track stock levels and reorder thresholds.</p>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-slate-200/70 dark:border-slate-700">
+          <ProductTable products={products} onAdjustStock={handleStockAdjustment}/>
+        </div>
       </section>
     </div>
   );

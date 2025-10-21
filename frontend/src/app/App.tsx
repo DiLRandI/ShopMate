@@ -43,7 +43,7 @@ export function App() {
   const [lowStockCount, setLowStockCount] = useState(0);
   const [profile, setProfile] = useState<ShopProfile | null>(null);
   const [preferences, setPreferences] = useState<PreferencesPayload | null>(null);
-  const [highContrast, setHighContrast] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -52,8 +52,13 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    document.body.classList.toggle("high-contrast", highContrast);
-  }, [highContrast]);
+    document.documentElement.classList.toggle("dark", darkMode);
+    document.body.classList.toggle("theme-dark", darkMode);
+    return () => {
+      document.documentElement.classList.remove("dark");
+      document.body.classList.remove("theme-dark");
+    };
+  }, [darkMode]);
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -79,10 +84,10 @@ export function App() {
           event.preventDefault();
           setActivePage("settings");
           break;
-        case "h":
-        case "H":
+        case "d":
+        case "D":
           event.preventDefault();
-          void toggleHighContrast();
+          void toggleDarkMode();
           break;
         default:
           break;
@@ -90,7 +95,7 @@ export function App() {
     }
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [highContrast]);
+  }, [darkMode]);
 
   const shopName = useMemo(() => profile?.name ?? "ShopMate", [profile]);
 
@@ -102,7 +107,7 @@ export function App() {
       ]);
       setProfile(profileData);
       setPreferences(preferencesData);
-      setHighContrast(preferencesData.highContrast);
+      setDarkMode(preferencesData.darkMode);
       if (!profileData.name.trim()) {
         setShowOnboarding(true);
       }
@@ -122,14 +127,14 @@ export function App() {
     }
   }
 
-  async function toggleHighContrast() {
+  async function toggleDarkMode() {
     if (!preferences) return;
-    const updated = {...preferences, highContrast: !highContrast};
+    const updated = {...preferences, darkMode: !darkMode};
     try {
       const saved = await savePreferences(updated);
       setPreferences(saved);
-      setHighContrast(saved.highContrast);
-      setStatusMessage(saved.highContrast ? "High contrast enabled." : "High contrast disabled.");
+      setDarkMode(saved.darkMode);
+      setStatusMessage(saved.darkMode ? "Dark theme enabled." : "Dark theme disabled.");
     } catch (error) {
       setStatusMessage(`Unable to update preferences: ${describeError(error)}`);
     }
@@ -157,7 +162,7 @@ export function App() {
 
   function handlePreferencesChange(updated: PreferencesPayload) {
     setPreferences(updated);
-    setHighContrast(updated.highContrast);
+    setDarkMode(updated.darkMode);
   }
 
   let content: JSX.Element | null = null;
@@ -195,8 +200,8 @@ export function App() {
         activePage={activePage}
         onNavigate={setActivePage}
         lowStockCount={lowStockCount}
-        isHighContrast={highContrast}
-        onToggleHighContrast={() => void toggleHighContrast()}
+        isDarkMode={darkMode}
+        onToggleDarkMode={() => void toggleDarkMode()}
         statusMessage={statusMessage}
         shopName={shopName}
       >

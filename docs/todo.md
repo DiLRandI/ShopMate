@@ -25,7 +25,7 @@
 - [x] Deliver Reports dashboard with charts, CSV exports, and date filters
 - [x] Build Settings area for shop profile, invoice template, backup controls, security PIN
 - [x] Ensure PDF/CSV export actions integrate with backend bridges
-- [x] Add accessibility, high-contrast theme toggle, and keyboard shortcuts
+- [x] Add accessibility, dark theme toggle, and keyboard shortcuts
 
 ## Testing & Verification
 - [x] Add table-driven unit tests for pricing/tax math, CSV validation, settings, backups

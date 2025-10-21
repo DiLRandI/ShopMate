@@ -162,118 +162,153 @@ export function PosPage({onInventoryChanged}: PosPageProps) {
   }
 
   return (
-    <div className="pos-pane">
-      <section className="pos-search">
-        <h2>Products</h2>
-        <input
-          className="pos-search__input"
-          type="search"
-          value={search}
-          onChange={event => setSearch(event.target.value)}
-          placeholder="Search by name or SKU"
-        />
+    <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <section className="flex flex-col gap-6 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Products</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Search inventory and add items to the current sale.</p>
+          </div>
+          <div className="w-full sm:w-80">
+            <input
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/40 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              type="search"
+              value={search}
+              onChange={event => setSearch(event.target.value)}
+              placeholder="Search by name or SKU"
+            />
+          </div>
+        </header>
 
-        <div className="pos-product-list">
-          {filteredProducts.map(product => (
-            <article key={product.id} className="pos-product">
-              <div>
-                <h3>{product.name}</h3>
-                <p>SKU: {product.sku}</p>
-              </div>
-              <div className="pos-product__meta">
-                <span>{formatCurrency(product.unitPriceCents)}</span>
-                <button type="button" onClick={() => handleAddToCart(product)}>
-                  Add
-                </button>
-              </div>
-            </article>
-          ))}
-          {filteredProducts.length === 0 && <p className="pos-empty">No products match that search.</p>}
+        <div className="max-h-[28rem] overflow-y-auto pr-2 scrollbar-thin">
+          {filteredProducts.length === 0 ? (
+            <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+              No products match that search.
+            </p>
+          ) : (
+            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {filteredProducts.map(product => (
+                <li key={product.id}>
+                  <button
+                    type="button"
+                    onClick={() => handleAddToCart(product)}
+                    className="flex w-full flex-col items-start justify-between gap-3 rounded-2xl border border-transparent bg-blue-50/70 px-4 py-3 text-left transition hover:border-brand-primary hover:bg-white hover:shadow focus:outline-none focus:ring-2 focus:ring-brand-primary/50 dark:bg-slate-800/70 dark:hover:bg-slate-800"
+                  >
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-900 dark:text-white">{product.name}</h3>
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">SKU: {product.sku}</p>
+                    </div>
+                    <div className="flex w-full items-center justify-between">
+                      <span className="text-sm font-semibold text-brand-primary dark:text-blue-200">{formatCurrency(product.unitPriceCents)}</span>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand-primary shadow-sm dark:bg-slate-900">Add to cart</span>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </section>
 
-      <section className="pos-cart">
-        <h2>Cart</h2>
+      <section className="flex flex-col gap-6 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Cart</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Adjust quantities, apply discounts, and review totals.</p>
+        </div>
 
         {cart.length === 0 ? (
-          <p className="pos-empty">Scan or search items to begin building the invoice.</p>
+          <p className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300">
+            Scan or search items to begin building the invoice.
+          </p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th style={{width: "30%"}}>Item</th>
-                <th>Qty</th>
-                <th>Price</th>
-                <th>Discount</th>
-                <th>Tax %</th>
-                <th>Total</th>
-                <th/>
-              </tr>
-            </thead>
-            <tbody>
-              {cart.map(line => {
-                const subtotal = line.product.unitPriceCents * line.quantity;
-                const discountCents = Math.min(parseMoney(line.lineDiscount), subtotal);
-                const taxableBase = subtotal - discountCents;
-                const taxCents = Math.round(taxableBase * (line.product.taxRate / 100));
-                const totalCents = taxableBase + taxCents;
+          <div className="overflow-x-auto">
+            <table className="min-w-full table-fixed border-separate border-spacing-y-2 text-left text-sm text-slate-700 dark:text-slate-200">
+              <thead className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                <tr>
+                  <th className="pl-3 pr-2">Item</th>
+                  <th className="px-2">Qty</th>
+                  <th className="px-2 text-right">Price</th>
+                  <th className="px-2">Discount</th>
+                  <th className="px-2 text-right">Tax %</th>
+                  <th className="px-2 text-right">Total</th>
+                  <th className="px-2 text-right"/>
+                </tr>
+              </thead>
+              <tbody>
+                {cart.map(line => {
+                  const subtotal = line.product.unitPriceCents * line.quantity;
+                  const discountCents = Math.min(parseMoney(line.lineDiscount), subtotal);
+                  const taxableBase = subtotal - discountCents;
+                  const taxCents = Math.round(taxableBase * (line.product.taxRate / 100));
+                  const totalCents = taxableBase + taxCents;
 
-                return (
-                  <tr key={line.product.id}>
-                    <td>
-                      <div className="pos-cart__item">
-                        <strong>{line.product.name}</strong>
-                        <span>{line.product.sku}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        min="0"
-                        value={line.quantity}
-                        onChange={event => handleQuantityChange(line.product.id, event.target.value)}
-                      />
-                    </td>
-                    <td>{formatCurrency(line.product.unitPriceCents)}</td>
-                    <td>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={line.lineDiscount}
-                        onChange={event => handleLineDiscountChange(line.product.id, event.target.value)}
-                      />
-                    </td>
-                    <td>{line.product.taxRate.toFixed(2)}</td>
-                    <td>{formatCurrency(totalCents)}</td>
-                    <td>
-                      <button type="button" onClick={() => handleRemoveLine(line.product.id)}>
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  return (
+                    <tr key={line.product.id} className="rounded-xl bg-slate-50/80 align-top shadow-sm dark:bg-slate-800/60">
+                      <td className="rounded-l-xl px-3 py-3">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-semibold text-slate-900 dark:text-white">{line.product.name}</span>
+                          <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{line.product.sku}</span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-3">
+                        <input
+                          className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 shadow-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/40 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                          type="number"
+                          min="0"
+                          value={line.quantity}
+                          onChange={event => handleQuantityChange(line.product.id, event.target.value)}
+                        />
+                      </td>
+                      <td className="px-2 py-3 text-right font-medium">{formatCurrency(line.product.unitPriceCents)}</td>
+                      <td className="px-2 py-3">
+                        <input
+                          className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 shadow-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/40 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={line.lineDiscount}
+                          onChange={event => handleLineDiscountChange(line.product.id, event.target.value)}
+                        />
+                      </td>
+                      <td className="px-2 py-3 text-right">{line.product.taxRate.toFixed(2)}</td>
+                      <td className="px-2 py-3 text-right font-semibold text-slate-900 dark:text-white">{formatCurrency(totalCents)}</td>
+                      <td className="rounded-r-xl px-2 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLine(line.product.id)}
+                          className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-400/50 dark:border-rose-700 dark:bg-rose-900/40 dark:text-rose-200"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
 
-        <div className="pos-form">
-          <label>
+        <div className="grid gap-4 md:grid-cols-3">
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
             <span>Customer Name (optional)</span>
             <input value={customerName} onChange={event => setCustomerName(event.target.value)} placeholder="Walk-in"/>
           </label>
 
-          <label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
             <span>Payment Method</span>
-            <select value={paymentMethod} onChange={event => setPaymentMethod(event.target.value as typeof paymentOptions[number])}>
+            <select
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/40 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              value={paymentMethod}
+              onChange={event => setPaymentMethod(event.target.value as (typeof paymentOptions)[number])}
+            >
               {paymentOptions.map(method => (
                 <option key={method} value={method}>{method}</option>
               ))}
             </select>
           </label>
 
-          <label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
             <span>Order Discount</span>
             <input
               type="number"
@@ -285,30 +320,34 @@ export function PosPage({onInventoryChanged}: PosPageProps) {
           </label>
         </div>
 
-        <dl className="pos-summary">
-          <div>
+        <dl className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 sm:grid-cols-2">
+          <div className="flex items-center justify-between">
             <dt>Subtotal</dt>
             <dd>{formatCurrency(totals.subtotal)}</dd>
           </div>
-          <div>
+          <div className="flex items-center justify-between">
             <dt>Discount</dt>
             <dd>{formatCurrency(totals.orderDiscount)}</dd>
           </div>
-          <div>
+          <div className="flex items-center justify-between">
             <dt>Tax</dt>
             <dd>{formatCurrency(totals.tax)}</dd>
           </div>
-          <div className="pos-summary__total">
+          <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-base text-slate-900 shadow-inner dark:bg-slate-900 dark:text-white">
             <dt>Total Due</dt>
             <dd>{formatCurrency(totals.total)}</dd>
           </div>
         </dl>
 
-        {error && <p className="pos-error">{error}</p>}
+        {error && (
+          <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600 dark:border-rose-700 dark:bg-rose-900/40 dark:text-rose-200">
+            {error}
+          </p>
+        )}
 
         <button
           type="button"
-          className="pos-submit"
+          className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-brand-primary to-brand-accent px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-brand-primary/60 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isSubmitting || cart.length === 0}
           onClick={handleSubmit}
         >

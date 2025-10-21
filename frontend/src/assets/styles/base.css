@@ -518,13 +518,17 @@ body {
   font-weight: 600;
 }
 
-.contrast-toggle {
+.theme-toggle {
   border: 1px solid rgba(14, 26, 43, 0.15);
   background: white;
   border-radius: 999px;
   padding: 6px 16px;
   cursor: pointer;
   font-weight: 600;
+}
+
+.theme-toggle:hover {
+  background: rgba(48, 80, 254, 0.1);
 }
 
 .app-shell__nav-button {
@@ -839,41 +843,55 @@ body {
   font-weight: 600;
 }
 
-body.high-contrast {
-  background: #000;
-  color: #fff;
+body.theme-dark {
+  background: #0b1220;
+  color: #f1f5f9;
 }
 
-body.high-contrast .app-shell {
-  background: #101010;
-  color: #f2f2f2;
+body.theme-dark .app-shell {
+  background: #111827;
+  color: #e2e8f0;
   box-shadow: none;
 }
 
-body.high-contrast .app-shell__content {
-  background: #181818;
-  color: #f2f2f2;
+body.theme-dark .app-shell__content {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(45, 212, 191, 0.08));
+  color: #e2e8f0;
 }
 
-body.high-contrast .product-row--low td {
-  background: rgba(255, 165, 0, 0.4);
+body.theme-dark .product-row--low td {
+  background: rgba(251, 191, 36, 0.22);
 }
 
-body.high-contrast .status-chip {
-  background: #444;
-  color: #fff;
+body.theme-dark .status-chip {
+  background: rgba(59, 130, 246, 0.2);
+  color: #dbeafe;
 }
 
-body.high-contrast .contrast-toggle {
-  background: #282828;
-  color: #fff;
-  border-color: #555;
+body.theme-dark .theme-toggle {
+  background: rgba(148, 163, 184, 0.18);
+  color: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.35);
 }
 
-body.high-contrast .inventory-actions button,
-body.high-contrast .sales-actions button,
-body.high-contrast .reports-top__controls button {
-  background: #282828;
-  color: #fff;
-  border-color: #555;
+body.theme-dark .theme-toggle:hover {
+  background: rgba(59, 130, 246, 0.25);
+}
+
+body.theme-dark .inventory-actions button,
+body.theme-dark .sales-actions button,
+body.theme-dark .reports-top__controls button {
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+body.theme-dark .inventory-feedback {
+  color: #34d399;
+}
+
+body.theme-dark .inventory-actions button:hover,
+body.theme-dark .sales-actions button:hover,
+body.theme-dark .reports-top__controls button:hover {
+  background: rgba(59, 130, 246, 0.28);
 }

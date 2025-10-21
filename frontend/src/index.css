@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  body {
+    @apply min-h-screen bg-slate-100 text-slate-900 antialiased transition-colors duration-300 ease-out;
+  }
+
+  body.dark,
+  body.theme-dark {
+    @apply bg-slate-950 text-slate-100;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+
+  input,
+  button,
+  textarea {
+    @apply rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm transition-all duration-150 ease-in-out focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100;
+  }
+
+  button {
+    @apply cursor-pointer font-semibold;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-color: theme(colors.slate.400) transparent;
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.6);
+    border-radius: 9999px;
+  }
+}

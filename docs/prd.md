@@ -32,7 +32,7 @@ Complex taxation rules beyond flat/item tax rates
 - ✅ POS flow issues invoices with HTML/PDF output, wraps all bridge calls in `{ok,data,error}` envelopes, and reflects real-time stock changes.
 - ✅ Sales history, reporting dashboards, and backup scheduling (midnight + on exit) are implemented end-to-end.
 - ✅ Settings screens persist shop profile, localization preferences, and owner PIN (hashed) with verification helpers.
-- ✅ High-contrast theme toggle, keyboard shortcuts (Alt+1..5, Alt+H), onboarding wizard, and low-stock status chip shipped across the desktop shell.
+- ✅ Dark theme toggle, keyboard shortcuts (Alt+1..5, Alt+D), onboarding wizard, and low-stock status chip shipped across the desktop shell.
 
 1) Product Objectives & Success Metrics
 
@@ -394,7 +394,7 @@ No data leaves device unless exported by user.
 
 Accessibility
 
-Keyboard navigation, high-contrast theme toggle, large font option.
+Keyboard navigation, dark theme toggle, large font option.
 
 Localization
 

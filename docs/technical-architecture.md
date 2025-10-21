@@ -55,7 +55,7 @@ This document describes the recommended repository layout, tooling baselines, an
 
 ### Settings & Security
 - `internal/services/settings` wraps the `settings` table, exposes profile/preferences APIs, and hashes owner PINs via `bcrypt` with validation helpers. `VerifyOwnerPIN` and `ClearOwnerPIN` gate sensitive operations.
-- Preferences track locale, high-contrast mode, and telemetry toggles consumed by the logging factory and UI shell.
+- Preferences track locale, dark theme preference, and telemetry toggles consumed by the logging factory and UI shell.
 
 ### Invoice Rendering & Reporting
 - `internal/services/invoice` renders deterministic HTML templates (Go `html/template`) and emits lightweight PDFs via a handwritten writer (no external binary dependency). Wails API exposes base64 payloads for printing/downloading.

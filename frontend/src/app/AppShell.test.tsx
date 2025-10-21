@@ -10,8 +10,8 @@ describe("AppShell", () => {
         activePage="dashboard"
         onNavigate={() => undefined}
         lowStockCount={0}
-        isHighContrast={false}
-        onToggleHighContrast={() => undefined}
+        isDarkMode={false}
+        onToggleDarkMode={() => undefined}
       >
         content
       </AppShell>
