@@ -1,6 +1,6 @@
 import {useEffect} from "react";
 import type {Sale} from "@/features/pos/api";
-import {formatCurrency} from "@/features/pos/utils";
+import {useCurrencyFormatter} from "@/features/settings/ShopProfileContext";
 
 type InvoiceDialogProps = {
   sale: Sale;
@@ -8,6 +8,7 @@ type InvoiceDialogProps = {
 };
 
 export function InvoiceDialog({sale, onClose}: InvoiceDialogProps) {
+  const {formatCurrency} = useCurrencyFormatter();
   useEffect(() => {
     const timer = window.setTimeout(() => {
       window.print();

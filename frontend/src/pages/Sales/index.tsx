@@ -7,6 +7,7 @@ import {
   type Sale,
 } from "@/features/pos/api";
 import {InvoiceDialog} from "@/features/pos/components/InvoiceDialog";
+import {useCurrencyFormatter} from "@/features/settings/ShopProfileContext";
 
 const PAYMENT_METHODS = ["Cash", "Card", "Wallet/UPI"] as const;
 const STATUSES = ["Completed", "Refunded", "Voided"] as const;
@@ -43,6 +44,7 @@ function describeError(error: unknown): string {
 }
 
 export function SalesPage() {
+  const {formatCurrency} = useCurrencyFormatter();
   const [filter, setFilter] = useState<SalesFilter>(defaultFilter);
   const [sales, setSales] = useState<Sale[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -194,7 +196,7 @@ export function SalesPage() {
           </p>
           <p className="mt-2 flex items-center justify-between text-brand-primary dark:text-blue-200">
             <span>Revenue</span>
-            <span>{(summary.totalCents / 100).toLocaleString(undefined, {style: "currency", currency: "USD"})}</span>
+            <span>{formatCurrency(summary.totalCents)}</span>
           </p>
         </div>
       </aside>
@@ -235,7 +237,7 @@ export function SalesPage() {
                     <td className="px-2 py-3 text-sm">{sale.customerName || "Walk-in"}</td>
                     <td className="px-2 py-3 text-sm">{sale.paymentMethod}</td>
                     <td className="px-2 py-3 text-right font-semibold text-slate-900 dark:text-white">
-                      {(sale.totalCents / 100).toLocaleString(undefined, {style: "currency", currency: "USD"})}
+                      {formatCurrency(sale.totalCents)}
                     </td>
                     <td className="px-2 py-3">
                       <span

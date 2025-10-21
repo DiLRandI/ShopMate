@@ -1,4 +1,4 @@
-# ShopMate Technical Architecture (2025-10-19)
+# ShopMate Technical Architecture (2025-10-21)
 
 ## Purpose
 This document describes the recommended repository layout, tooling baselines, and engineering conventions for the ShopMate Wails (Go + React) desktop application. It aligns the Go 1.25.3 backend, React/Vite frontend, and build automation so contributors share a consistent starting point.
@@ -46,6 +46,8 @@ This document describes the recommended repository layout, tooling baselines, an
 
 ### Persistence & Concurrency
 - Continue using SQLite (WAL mode) but wrap DB access in repositories that validate business invariants server-side.
+- Extend `products` migrations with `margin_bp` and `max_discount_bp` (0–10000) and `sale_items` with `effective_discount_bp`; repositories clamp values and assert `max_discount_bp <= margin_bp` before writes.
+- Persist cart guardrail evaluations in domain services so order-level discounts are allocated per line and recorded as `effective_discount_bp` for later reporting.
 - Use `sync.WaitGroup.Go` for structured fan-out work (e.g., concurrent export generation) to avoid manual counter management. citeturn6search0
 - For concurrent testing, exercise workflows with `testing/synctest` to catch timing bugs in stock adjustments and backup scheduling. citeturn6search0
 
@@ -66,18 +68,21 @@ This document describes the recommended repository layout, tooling baselines, an
 - `internal/services/settings` wraps the `settings` table, exposes profile/preferences APIs, and hashes owner PINs via `bcrypt` with validation helpers. `VerifyOwnerPIN` and `ClearOwnerPIN` gate sensitive operations.
 - `internal/auth` is responsible for password hashing/verification, super-admin creation, and user CRUD (username, password, role, status). All password hashes stay inside SQLite; only the reset flag leaks to the frontend.
 - Preferences track locale, dark theme preference, telemetry toggles, and whether the default admin password is still active so the UI can block navigation until it is changed.
+- Add POS preference keys: `pos.enable_discount_suggestions` (bool, default `false`) and `pos.default_margin_bp` (int basis points used to prefill new products); backend surfaces both on bootstrap and persists updates atomically.
 
 ### Invoice Rendering & Reporting
 - `internal/services/invoice` renders deterministic HTML templates (Go `html/template`) and emits lightweight PDFs via a handwritten writer (no external binary dependency). Wails API exposes base64 payloads for printing/downloading.
-- Reporting service adds CSV export helpers for daily summaries and top products; frontend buttons trigger base64 downloads and reflect the same calculations used in Go tests.
+- Reporting service now aggregates daily summaries, top products, and the product margin report. It allocates order-level discounts per line, persists `effective_discount_bp`, and exposes CSV exports that include configured margin/max discount and realized discount variance.
 
 ### Wails Bridge Contract
 - All exported Go APIs now return a generic `response.Envelope[T]` ensuring `{ok,data,error}` semantics. Frontend wrappers unwrap envelopes consistently via `services/wailsResponse.ts`.
 - New bridges: `auth.API` (login/logout/session), `user.API` (admin CRUD for users + role updates), `settings.API`, `invoice.API`, extended `backup.API`, `product.API` (CRUD/import/export), and `sale.API` (filters + void/refund).
+- Extend `sale.API` with `SuggestDiscount(lines)` to compute guardrail-compliant order discounts, add `product.API.MarginDefaults()` for seeding new product forms, and expose `reports.API.ProductMargins(range)` for margin variance dashboards/exports.
 
 ### Testing & Tooling
 - Place unit tests alongside implementation packages (`*_test.go`) and use table-driven tests for domain logic. citeturn1search0
 - Add integration tests under `tests/` (or `internal/tests/`) for end-to-end Wails calls and database migrations.
+- Add regression suites that assert margin/max discount guardrails, discount suggestion outputs, and `reports.ProductMargins` aggregations to prevent profitability regressions.
 
 ## Frontend: React + Vite
 
@@ -118,6 +123,7 @@ frontend/
 ```
 
 - `features/auth` handles login views, session hooks, and guards; `features/users` surfaces the admin-only team management screens backed by shared auth state (Zustand/context) that gates routes before POS/Settings render.
+- `features/billing` owns the POS cart, discount suggestion banner, and guardrail messaging; `features/reports` renders the margin variance table with CSV export controls.
 - Limit folder depth to keep imports manageable and collocate tests/story files with their components. citeturn2search0
 
 ### Build & Performance Practices
@@ -131,6 +137,12 @@ frontend/
 - Provide a `RequireRole` wrapper component that blocks navigation, shows a password-change warning if `requires_password_reset` is true, and reroutes to login when the session expires.
 - The Settings “Team Members” page (under `features/users`) calls `user.API` for CRUD, with inline validation for username uniqueness and password strength. Operators never load this route.
 - Expose a “Change Password” dialog in Settings → My Profile, hitting `auth.API.ChangePassword` and updating the reset flag on success.
+
+### POS Discount & Margin UX
+- `features/billing` subscribes to `settingsStore.pos.enableDiscountSuggestions` and only renders the suggestion banner when enabled; banner content pulls from `sale.API.SuggestDiscount` and links to product detail modals for quick edits.
+- Cart lines badge their margin/max discount guardrails; any override attempts outside allowed ranges surface toast + inline error states while keeping keyboard workflows intact.
+- Product editors (`features/inventory/ProductForm`) call `product.API.MarginDefaults()` for prefills, normalize margin/max discount inputs as percentages, and reuse shared validation hooks so CSV imports, forms, and bulk edits stay consistent.
+- Margin report view composes a TanStack Table grid with column filters, “Over Discount” pill indicators, and export-to-CSV button wired to `reports.API.ProductMargins`.
 
 ## Cross-Cutting Build Automation
 - Provide a `Makefile` wrapper for common tasks: `make dev` (Wails dev server + frontend), `make build` (production binary), `make lint`, and `make test`. This keeps the workflow consistent across platforms and CI. Wails CLI commands (`wails dev`, `wails build`) remain the single source of truth. citeturn11search0turn11search1turn10search1

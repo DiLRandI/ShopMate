@@ -7,16 +7,14 @@ import {
   type DailySummaryView,
   type TopProduct,
 } from "@/features/reports/api";
+import {useCurrencyFormatter} from "@/features/settings/ShopProfileContext";
 
 function toDateInputValue(iso: string): string {
   return iso.slice(0, 10);
 }
 
-function currency(cents: number): string {
-  return (cents / 100).toLocaleString(undefined, {style: "currency", currency: "USD"});
-}
-
 export function ReportsPage() {
+  const {formatCurrency} = useCurrencyFormatter();
   const todayISO = new Date().toISOString();
   const [selectedDate, setSelectedDate] = useState(todayISO);
   const [rangeStart, setRangeStart] = useState(() => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
@@ -102,7 +100,7 @@ export function ReportsPage() {
           <dl className="grid gap-4 rounded-2xl bg-slate-50/70 p-4 text-sm font-semibold text-slate-700 dark:bg-slate-800/60 dark:text-slate-200 sm:grid-cols-2">
             <div className="rounded-xl bg-white px-4 py-3 shadow-sm dark:bg-slate-900">
               <dt className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Total Sales</dt>
-              <dd className="mt-1 text-lg text-brand-primary dark:text-blue-200">{currency(summary.totalSales)}</dd>
+              <dd className="mt-1 text-lg text-brand-primary dark:text-blue-200">{formatCurrency(summary.totalSales)}</dd>
             </div>
             <div className="rounded-xl bg-white px-4 py-3 shadow-sm dark:bg-slate-900">
               <dt className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Invoices</dt>
@@ -110,11 +108,11 @@ export function ReportsPage() {
             </div>
             <div className="rounded-xl bg-white px-4 py-3 shadow-sm dark:bg-slate-900">
               <dt className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Average Ticket</dt>
-              <dd className="mt-1 text-lg">{currency(summary.averageTicket)}</dd>
+              <dd className="mt-1 text-lg">{formatCurrency(summary.averageTicket)}</dd>
             </div>
             <div className="rounded-xl bg-white px-4 py-3 shadow-sm dark:bg-slate-900">
               <dt className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Tax Collected</dt>
-              <dd className="mt-1 text-lg">{currency(summary.taxCollected)}</dd>
+              <dd className="mt-1 text-lg">{formatCurrency(summary.taxCollected)}</dd>
             </div>
           </dl>
         ) : (
@@ -170,7 +168,7 @@ export function ReportsPage() {
                     <p className="text-sm font-semibold text-slate-900 dark:text-white">{product.productName || "Unnamed"}</p>
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{product.quantitySold} sold</p>
                   </div>
-                  <span className="text-sm font-semibold text-brand-primary dark:text-blue-200">{currency(product.revenueCents)}</span>
+                  <span className="text-sm font-semibold text-brand-primary dark:text-blue-200">{formatCurrency(product.revenueCents)}</span>
                 </div>
                 <div className="mt-3 h-3 w-full rounded-full bg-slate-200/80 dark:bg-slate-700/80">
                   <span

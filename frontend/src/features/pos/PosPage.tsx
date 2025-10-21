@@ -4,7 +4,8 @@ import {fetchProducts} from "@/features/products/api";
 import {buildCreateSaleRequest, createSale} from "@/features/pos/api";
 import type {Sale} from "@/features/pos/api";
 import {InvoiceDialog} from "@/features/pos/components/InvoiceDialog";
-import {calculateTotals, formatCurrency, parseMoney, type TotalsInputLine} from "@/features/pos/utils";
+import {calculateTotals, parseMoney, type TotalsInputLine} from "@/features/pos/utils";
+import {useCurrencyFormatter} from "@/features/settings/ShopProfileContext";
 
 type CartLine = {
   product: ProductView;
@@ -26,6 +27,7 @@ type PosPageProps = {
 };
 
 export function PosPage({onInventoryChanged}: PosPageProps) {
+  const {formatCurrency} = useCurrencyFormatter();
   const [products, setProducts] = useState<ProductView[]>([]);
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);

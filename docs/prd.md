@@ -26,7 +26,7 @@ Vendor purchase orders and GRNs
 Complex taxation rules beyond flat/item tax rates
 External compliance certifications (PCI DSS, SOC 2) for auth in v1.0
 
-## Status Update (2025-10-20)
+## Status Update (2025-10-21)
 
 - ✅ Inventory management supports full CRUD operations, CSV import/export, and manual stock adjustments.
 - ✅ POS flow issues invoices with HTML/PDF output, wraps all bridge calls in `{ok,data,error}` envelopes, and reflects real-time stock changes.
@@ -34,6 +34,7 @@ External compliance certifications (PCI DSS, SOC 2) for auth in v1.0
 - ✅ Settings screens persist shop profile, localization preferences, and owner PIN (hashed) with verification helpers.
 - ✅ Dark theme toggle, keyboard shortcuts (Alt+1..5, Alt+D), onboarding wizard, and low-stock status chip shipped across the desktop shell.
 - 🚧 Username/password authentication with role management scoped for the next Settings update (default admin seeded locally, POS-only role in progress).
+- 🆕 Product-level margin & maximum discount guardrails, POS discount suggestion toggle, and margin reporting drafted for implementation alignment (docs updated 2025-10-21).
 
 1) Product Objectives & Success Metrics
 
@@ -62,9 +63,9 @@ Average bill creation time (from POS screen open to print/share) ≤ 25 seconds.
 
 Products & Stock
 
-Create/edit products: name, sku/barcode, category, unit price, tax rate, current qty, reorder level, notes.
+Create/edit products: name, sku/barcode, category, unit price, tax rate, current qty, reorder level, margin %, maximum discount %, notes.
 
-Bulk import from CSV; bulk export to CSV.
+Bulk import from CSV; bulk export to CSV (including margin and max discount).
 
 Low-stock indicator on list + badge on sidebar.
 
@@ -80,6 +81,8 @@ Generate Invoice (HTML → system print dialog) and PDF export.
 
 Auto-decrement stock on successful sale.
 
+Suggested discount callout (optional, controlled by shop-level toggle) that honors per-product maximums and margins.
+
 Sales History
 
 List of invoices with filters (date range, payment method, customer).
@@ -93,6 +96,8 @@ Reports (Basic)
 Daily Summary: total sales, #invoices, avg ticket, tax collected.
 
 Top Products (date range): qty & revenue.
+
+Product Margin Report: margin %, max discount %, realized discount, variance alerts.
 
 Export report CSVs.
 
@@ -153,6 +158,10 @@ As an owner, I can add a product with name, price, tax, and quantity so I can se
 
 Acceptance: Required fields validated; product appears in POS search; stock listed correctly.
 
+As an owner, I can set each product’s margin % and maximum discount % so profitability rules flow through POS and reports.
+
+Acceptance: Margin/max discount inputs default from CSV/import values, enforce 0–100%, and block saving when max discount exceeds margin.
+
 As an owner, I can import a CSV of products to save time.
 
 Acceptance: Sample CSV template provided; import shows a preview & validation errors; creates/updates products.
@@ -167,6 +176,10 @@ As a cashier, I can apply an order-level discount (amount or %).
 
 Acceptance: Totals recalc accurately; discount reflected in invoice and saved in DB.
 
+As a cashier, I see a suggested overall discount based on products in the cart when the shop owner enables it.
+
+Acceptance: Suggestion respects each product’s max discount and margin, updates live as the cart changes, and never recommends values outside allowed ranges.
+
 3.3 Sales History
 
 As an owner, I can reprint a previous invoice and issue a refund.
@@ -179,6 +192,10 @@ As an owner, I can view today’s sales and top products.
 
 Acceptance: Stats align with sales table; exporting CSV matches UI values (± rounding).
 
+As an owner, I can review a margin report that highlights products sold below target margins.
+
+Acceptance: Report lists margin %, max discount %, realized discount %, and flags rows where realized discount exceeds max discount or margin.
+
 3.5 Settings/Backups
 
 As an owner, I can set my shop details and logo for invoices.
@@ -188,6 +205,10 @@ Acceptance: Preview invoice shows logo and details; PDFs and prints match previe
 As an owner, I get daily backups automatically.
 
 Acceptance: Backup files (.sqlite timestamped) appear in backup folder; last 30 kept.
+
+As an owner, I can toggle POS discount suggestions so staff only see them when aligned with store policy.
+
+Acceptance: Setting appears under POS preferences, persists locally, and immediately hides/shows suggestions without app restart.
 
 3.6 Authentication & User Management
 
@@ -251,6 +272,8 @@ CREATE TABLE IF NOT EXISTS products (
   tax_rate_bp INTEGER NOT NULL DEFAULT 0, -- basis points, e.g., 500 = 5.00%
   current_qty INTEGER NOT NULL DEFAULT 0,
   reorder_level INTEGER NOT NULL DEFAULT 0,
+  margin_bp INTEGER NOT NULL DEFAULT 0 CHECK(margin_bp BETWEEN 0 AND 10000),
+  max_discount_bp INTEGER NOT NULL DEFAULT 0 CHECK(max_discount_bp BETWEEN 0 AND 10000 AND max_discount_bp <= margin_bp),
   notes TEXT,
   created_at INTEGER NOT NULL, -- unix ms
   updated_at INTEGER NOT NULL
@@ -281,6 +304,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
   tax_rate_bp INTEGER NOT NULL,
   line_subtotal_cents INTEGER NOT NULL,
   line_discount_cents INTEGER NOT NULL DEFAULT 0,
+  effective_discount_bp INTEGER NOT NULL DEFAULT 0 CHECK(effective_discount_bp BETWEEN 0 AND 10000),
   line_tax_cents INTEGER NOT NULL,
   line_total_cents INTEGER NOT NULL
 );
@@ -315,9 +339,15 @@ Money stored as integer cents to avoid float issues.
 
 Tax stored as basis points (bp) for precision.
 
+Margin and max discount stored as basis points (0–10000) to align with tax precision.
+
+sale_items.effective_discount_bp captures per-line discount after allocating order-level discounts.
+
 current_qty is authoritative; stock_movements is the ledger.
 
 Users table stores Argon2/Bcrypt password hashes; `requires_password_reset` stays `1` until the default admin password changes.
+
+Settings store POS feature toggles such as `pos.enable_discount_suggestions` (string `"true"` / `"false"`).
 
 5.2 Derived Views (optional)
 CREATE VIEW IF NOT EXISTS v_daily_summary AS
@@ -331,12 +361,27 @@ FROM sales
 WHERE status='Completed'
 GROUP BY d;
 
+CREATE VIEW IF NOT EXISTS v_product_margin_report AS
+SELECT
+  si.product_id,
+  p.sku,
+  p.name,
+  SUM(si.qty) AS units_sold,
+  p.margin_bp,
+  p.max_discount_bp,
+  AVG(si.effective_discount_bp) AS avg_discount_bp,
+  p.margin_bp - AVG(si.effective_discount_bp) AS realized_margin_bp
+FROM sale_items si
+JOIN sales s ON s.id = si.sale_id AND s.status = 'Completed'
+JOIN products p ON p.id = si.product_id
+GROUP BY si.product_id;
+
 6) CSV Contracts
 6.1 Products Import CSV (UTF-8)
 
 Headers (exact order):
 
-sku,name,category,unit_price, tax_rate_percent, current_qty, reorder_level, notes
+sku,name,category,unit_price,tax_rate_percent,current_qty,reorder_level,margin_percent,max_discount_percent,notes
 
 
 unit_price is decimal string like 199.99
@@ -345,11 +390,11 @@ tax_rate_percent like 5 or 5.5
 
 Validation
 
-name required; unit_price ≥ 0; current_qty integer.
+name required; unit_price ≥ 0; current_qty integer; margin/max discount 0–100; max discount ≤ margin.
 
 6.2 Products Export CSV
 
-Same columns, plus created_at,updated_at (ISO 8601).
+Same columns (including margin_percent and max_discount_percent), plus created_at,updated_at (ISO 8601).
 
 6.3 Sales Export CSV
 sale_no,ts_iso,customer_name,payment_method,subtotal,tax,discount,total,status
@@ -359,6 +404,11 @@ sale_no,sku,product_name,qty,unit_price,line_discount,line_tax,line_total
 
 6.5 Stock Movements Export CSV
 ts_iso,sku,product_name,delta,reason,ref
+
+6.6 Margin Report CSV
+sku,product_name,units_sold,margin_percent,max_discount_percent,average_discount_percent,realized_margin_percent,flag
+
+flag indicates “OVER_DISCOUNT” when realized discounts exceed configured thresholds.
 
 7) Invoice Spec
 
@@ -499,6 +549,8 @@ ProductImportCSV(path:string)
 
 ProductExportCSV(path:string)
 
+ProductMarginDefaults() // returns global defaults for margin/max discount thresholds
+
 Sales
 
 SaleCreate(d:SaleDraft) → returns sale_no
@@ -513,11 +565,15 @@ SaleExportCSV(path:string)
 
 SaleItemsExportCSV(path:string)
 
+SaleSuggestDiscount(lines:[]CartLineInput) → returns {suggestedDiscountBp:int, capReason:string}
+
 Reports
 
 ReportDaily(date:string) // YYYY-MM-DD
 
 ReportRangeSummary(from:string, to:string) // totals, top N
+
+ReportProductMargins(from:string, to:string) // margin delta report
 
 ReportExportCSV(type:string, from:string, to:string, path:string)
 
@@ -541,6 +597,8 @@ type ProductInput = {
   taxRatePercent?: number;  // decimal string; store as bp
   currentQty?: number;
   reorderLevel?: number;
+  marginPercent?: number;   // decimal string; store as bp
+  maxDiscountPercent?: number; // decimal string; store as bp
   notes?: string;
 };
 
@@ -555,6 +613,13 @@ type SaleDraft = {
   paymentMethod: string;     // Cash/Card/UPI/Other
   customerName?: string;
   note?: string;
+};
+
+type CartLineInput = {
+  productId: number;
+  qty: number;
+  unitPriceCents: number;
+  lineDiscountCents?: number;
 };
 
 
@@ -575,11 +640,13 @@ Left: Search bar (SKU/Name), results list, quick add.
 
 Right (Cart): Lines (Item, Qty ±, Price, Disc), Subtotal, Discount, Tax, Total, Payment method select, “Save & Print”.
 
+Suggested discount banner: shows recommended % and rationale (e.g., “Tightest margin is 12% on SKU 123”), with tooltip linking to product settings; hidden when toggle off.
+
 Shortcuts: Ctrl+F search, +/- qty, Ctrl+S save & print.
 
 12.2 Products
 
-Table: SKU, Name, Category, Price, Qty, Reorder.
+Table: SKU, Name, Category, Price, Qty, Reorder, Margin %, Max Discount %.
 
 Actions: New, Import CSV, Export CSV, Adjust Stock.
 
@@ -597,11 +664,13 @@ Tiles: Today’s revenue, invoices, avg ticket, tax.
 
 Top products chart (bar, client-side).
 
+Margin report tab: table of SKU, units sold, margin %, max discount %, average discount %, flags; export CSV.
+
 Date range selector; export CSV.
 
 12.5 Settings
 
-Shop Profile, Invoice Template (preview), Data & Backup (paths, backup now), Security (owner PIN).
+Shop Profile, Invoice Template (preview), Data & Backup (paths, backup now), Security (owner PIN), POS preferences (discount suggestion toggle & default margin guardrail).
 
 13) Calculations
 
@@ -619,6 +688,21 @@ subtotal = sum(line_subtotals)
 order_discount applies after subtotal (before tax) OR proportionally per line (setting)
 tax = sum(line_tax)  // if tax % per line
 total = subtotal - order_discount + tax
+
+
+Margin Guardrails (cents → bp conversions use integer math)
+
+line_discount_bp = round((line_discount_cents * 10000) / max(line_subtotal_cents, 1))
+
+order_discount_bp_per_line = round((order_discount_cents * 10000 * line_subtotal_cents) / max(subtotal_cents, 1))
+
+effective_discount_bp = min(10000, line_discount_bp + order_discount_bp_per_line)
+
+Constraints: effective_discount_bp ≤ max_discount_bp and max_discount_bp ≤ margin_bp. Violations return error:"VALIDATION: discount exceeds product guardrails".
+
+Suggested order discount bp = min over cart lines of (min(margin_bp, max_discount_bp) - effective_discount_bp_current), clamped to ≥ 0; convert back to currency/percent for UI.
+
+realized_margin_bp = max(0, margin_bp - effective_discount_bp); expose as percent in reports.
 
 
 Rounding
@@ -653,17 +737,25 @@ Pricing/tax math; sale create/refund modifies stock correctly.
 
 CSV import validation; migrations up/down.
 
+Margin/max discount validation (guardrail failures return VALIDATION errors).
+
+ReportProductMargins aggregates units sold and realized discounts correctly.
+
 Integration Tests
 
 Create 100 products, 1000 sales; performance thresholds.
 
 Crash-safe writes (simulate abrupt termination during sale save).
 
+POS discount suggestion toggle on/off with mixed cart margins.
+
 UI Tests
 
 POS happy path: add items → save → print dialog invoked.
 
 CSV import preview validation errors rendered.
+
+Products form shows validation when margin < max discount; POS suggestion banner visible when toggle on.
 
 Acceptance Checklist
 
@@ -678,6 +770,10 @@ Acceptance Checklist
  CSV/PDF exports match UI values
 
  Owner PIN gates refunds/settings/restore
+
+ POS suggestion banner hidden when toggle off and never exceeds guardrails
+
+ Margin report flags over-discount rows accurately
 
 17) Risks & Mitigations
 

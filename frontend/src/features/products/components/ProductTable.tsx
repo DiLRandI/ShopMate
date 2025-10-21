@@ -1,11 +1,5 @@
+import {useCurrencyFormatter} from "@/features/settings/ShopProfileContext";
 import type {ProductView} from "../api";
-
-function formatCurrency(cents: number): string {
-  return (cents / 100).toLocaleString(undefined, {
-    style: "currency",
-    currency: "USD",
-  });
-}
 
 type ProductTableProps = {
   products: ProductView[];
@@ -13,6 +7,7 @@ type ProductTableProps = {
 };
 
 export function ProductTable({products, onAdjustStock}: ProductTableProps) {
+  const {formatCurrency} = useCurrencyFormatter();
   if (products.length === 0) {
     return <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">No products yet. Add your first item to populate inventory.</p>;
   }

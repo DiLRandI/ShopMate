@@ -1,5 +1,6 @@
 import type {ChangeEvent, FormEvent} from "react";
 import {useState} from "react";
+import {useCurrencyFormatter} from "@/features/settings/ShopProfileContext";
 import type {ProductInput} from "../api";
 
 type FormState = {
@@ -40,6 +41,7 @@ function parseMoney(value: string): number {
 
 export function ProductForm({onCreate, isSubmitting, error}: ProductFormProps) {
   const [form, setForm] = useState<FormState>(initialState);
+  const {currencySymbol} = useCurrencyFormatter();
 
   const updateField = (field: keyof FormState) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm(prev => ({...prev, [field]: event.target.value}));
@@ -79,7 +81,7 @@ export function ProductForm({onCreate, isSubmitting, error}: ProductFormProps) {
           <input required value={form.sku} onChange={updateField("sku")} placeholder="SKU-001"/>
         </label>
         <label className="flex flex-col gap-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
-          <span>Unit Price (USD)</span>
+          <span>Unit Price ({currencySymbol})</span>
           <input required type="number" min="0" step="0.01" value={form.price} onChange={updateField("price")}/>
         </label>
         <label className="flex flex-col gap-1 text-sm font-semibold text-slate-600 dark:text-slate-300">

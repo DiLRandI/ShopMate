@@ -1,4 +1,5 @@
 import {useEffect, useMemo, useState} from "react";
+import type {ReactNode} from "react";
 import {AppShell} from "./AppShell";
 import {DashboardPage} from "@/pages/Dashboard";
 import {PosPage} from "@/features/pos/PosPage";
@@ -15,6 +16,7 @@ import {
   type PreferencesPayload,
   type ShopProfile,
 } from "@/features/settings/api";
+import {ShopProfileProvider} from "@/features/settings/ShopProfileContext";
 export type PageKey = "dashboard" | "pos" | "sales" | "reports" | "settings";
 
 type NavItem = {
@@ -165,7 +167,7 @@ export function App() {
     setDarkMode(updated.darkMode);
   }
 
-  let content: JSX.Element | null = null;
+  let content: ReactNode = null;
   switch (activePage) {
     case "dashboard":
       content = <DashboardPage onInventoryChanged={low => setLowStockCount(low)}/>; // low value from callback
@@ -194,7 +196,7 @@ export function App() {
   }
 
   return (
-    <>
+    <ShopProfileProvider profile={profile}>
       <AppShell
         navItems={NAV_ITEMS}
         activePage={activePage}
@@ -211,6 +213,6 @@ export function App() {
       {showOnboarding && profile && (
         <OnboardingDialog initialProfile={profile} onComplete={handleOnboardingComplete}/>
       )}
-    </>
+    </ShopProfileProvider>
   );
 }
