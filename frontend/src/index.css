@@ -20,8 +20,16 @@
 
   input,
   button,
-  textarea {
-    @apply rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm transition-all duration-150 ease-in-out focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100;
+  textarea,
+  select {
+    @apply rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm transition-all duration-150 ease-in-out dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100;
+  }
+
+  input:focus-visible,
+  button:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    @apply border-blue-500 outline-none ring-2 ring-blue-500/40;
   }
 
   button {

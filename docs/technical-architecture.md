@@ -27,6 +27,7 @@ This document describes the recommended repository layout, tooling baselines, an
 │   │   ├── storage/           # SQLite repositories, migrations
 │   │   ├── invoicing/         # invoice rendering + PDF hooks
 │   │   └── backup/            # backup scheduler + retention
+│   ├── auth/                  # credential hashing, session issuance, middleware
 │   └── wailsapi/              # backend → frontend bindings
 ├── pkg/                       # exportable utilities (only if reused externally)
 ├── migrations/                # SQL files embedded via //go:embed
@@ -48,6 +49,14 @@ This document describes the recommended repository layout, tooling baselines, an
 - Use `sync.WaitGroup.Go` for structured fan-out work (e.g., concurrent export generation) to avoid manual counter management. citeturn6search0
 - For concurrent testing, exercise workflows with `testing/synctest` to catch timing bugs in stock adjustments and backup scheduling. citeturn6search0
 
+### Authentication & Authorization
+- `internal/auth` owns user repositories, password hashing helpers (bcrypt by default, ready for Argon2), and session token issuance (signed, short-lived refresh in memory).
+- Seed a default super admin (`admin` / `admin`) in the first migration; flag `requires_password_reset` so the UI can force a change after the first login.
+- Store users in a dedicated `users` table (username, password hash, role, timestamps, reset flag). Reuse the shared SQLite connection, wrap mutations in transactions, and expose CRUD via interfaces for testability.
+- Add Wails middleware that loads the session, attaches the authenticated user to request context, and enforces role checks (`ADMIN`, `OPERATOR`). Deny execution before reaching domain services if the caller lacks the privilege.
+- Log auth events (success, failure, password change) through the shared `slog` adapters without recording raw passwords.
+- Keep the implementation offline-first: no external auth servers or compliance integrations are required in v1.0; everything lives inside the local SQLite database.
+
 ### Backup & Restore Lifecycle
 - `internal/services/backup` now schedules nightly snapshots (next-midnight ticker) and on-shutdown backups. Retention defaults to 30 and trims both files and metadata for older entries using millisecond-resolution filenames.
 - Manual restore copies the selected snapshot, records a pre-restore backup automatically, and is covered by integration tests in `service_test.go`.
@@ -55,7 +64,8 @@ This document describes the recommended repository layout, tooling baselines, an
 
 ### Settings & Security
 - `internal/services/settings` wraps the `settings` table, exposes profile/preferences APIs, and hashes owner PINs via `bcrypt` with validation helpers. `VerifyOwnerPIN` and `ClearOwnerPIN` gate sensitive operations.
-- Preferences track locale, dark theme preference, and telemetry toggles consumed by the logging factory and UI shell.
+- `internal/auth` is responsible for password hashing/verification, super-admin creation, and user CRUD (username, password, role, status). All password hashes stay inside SQLite; only the reset flag leaks to the frontend.
+- Preferences track locale, dark theme preference, telemetry toggles, and whether the default admin password is still active so the UI can block navigation until it is changed.
 
 ### Invoice Rendering & Reporting
 - `internal/services/invoice` renders deterministic HTML templates (Go `html/template`) and emits lightweight PDFs via a handwritten writer (no external binary dependency). Wails API exposes base64 payloads for printing/downloading.
@@ -63,7 +73,7 @@ This document describes the recommended repository layout, tooling baselines, an
 
 ### Wails Bridge Contract
 - All exported Go APIs now return a generic `response.Envelope[T]` ensuring `{ok,data,error}` semantics. Frontend wrappers unwrap envelopes consistently via `services/wailsResponse.ts`.
-- New bridges: `settings.API`, `invoice.API`, extended `backup.API`, `product.API` (CRUD/import/export), and `sale.API` (filters + void/refund).
+- New bridges: `auth.API` (login/logout/session), `user.API` (admin CRUD for users + role updates), `settings.API`, `invoice.API`, extended `backup.API`, `product.API` (CRUD/import/export), and `sale.API` (filters + void/refund).
 
 ### Testing & Tooling
 - Place unit tests alongside implementation packages (`*_test.go`) and use table-driven tests for domain logic. citeturn1search0
@@ -85,6 +95,8 @@ frontend/
 ├── src/
 │   ├── app/                     # AppShell, router, providers
 │   ├── features/
+│   │   ├── auth/
+│   │   ├── users/
 │   │   ├── inventory/
 │   │   ├── billing/
 │   │   ├── reports/
@@ -105,6 +117,7 @@ frontend/
 └── vite.config.ts
 ```
 
+- `features/auth` handles login views, session hooks, and guards; `features/users` surfaces the admin-only team management screens backed by shared auth state (Zustand/context) that gates routes before POS/Settings render.
 - Limit folder depth to keep imports manageable and collocate tests/story files with their components. citeturn2search0
 
 ### Build & Performance Practices
@@ -112,6 +125,12 @@ frontend/
 - Define path aliases in `vite.config.ts` (e.g., `@/features/*`) to avoid brittle relative imports. citeturn2search2
 - Use strict TypeScript, React error boundaries, and modern image/lazy-loading patterns to maintain perceived performance. citeturn2search1turn2search10
 - Prefer Vitest and ESLint/Prettier for automated quality gates when the frontend scaffolding is generated. citeturn2search10
+
+### Authentication UX & State Management
+- Render a standalone login screen that calls `auth.API.Login` and stores the returned session token + role inside a central auth store (Zustand or React context). Persist tokens with `localStorage` guarded by Wails secure storage utilities.
+- Provide a `RequireRole` wrapper component that blocks navigation, shows a password-change warning if `requires_password_reset` is true, and reroutes to login when the session expires.
+- The Settings “Team Members” page (under `features/users`) calls `user.API` for CRUD, with inline validation for username uniqueness and password strength. Operators never load this route.
+- Expose a “Change Password” dialog in Settings → My Profile, hitting `auth.API.ChangePassword` and updating the reset flag on success.
 
 ## Cross-Cutting Build Automation
 - Provide a `Makefile` wrapper for common tasks: `make dev` (Wails dev server + frontend), `make build` (production binary), `make lint`, and `make test`. This keeps the workflow consistent across platforms and CI. Wails CLI commands (`wails dev`, `wails build`) remain the single source of truth. citeturn11search0turn11search1turn10search1
@@ -139,6 +158,7 @@ ShopMate/
 │   ├── domain/
 │   ├── services/
 │   ├── adapters/
+│   ├── auth/
 │   └── wailsapi/
 ├── migrations/
 ├── frontend/

@@ -9,9 +9,8 @@ Deliver a fast, offline-first desktop application that small retailers can insta
 
 Primary Users
 
-Shop owner (admin)
-
-Cashier (limited role; optional in v1.1)
+- Shop owner / Super Admin (full access, can manage users)
+- Store staff POS operator (limited to billing and receipt printing)
 
 Platforms
 Windows 10/11, macOS (Intel/ARM), Linux (Ubuntu LTS).
@@ -25,6 +24,7 @@ Advanced accounting (ledgers, P&L)
 Vendor purchase orders and GRNs
 
 Complex taxation rules beyond flat/item tax rates
+External compliance certifications (PCI DSS, SOC 2) for auth in v1.0
 
 ## Status Update (2025-10-20)
 
@@ -33,6 +33,7 @@ Complex taxation rules beyond flat/item tax rates
 - ✅ Sales history, reporting dashboards, and backup scheduling (midnight + on exit) are implemented end-to-end.
 - ✅ Settings screens persist shop profile, localization preferences, and owner PIN (hashed) with verification helpers.
 - ✅ Dark theme toggle, keyboard shortcuts (Alt+1..5, Alt+D), onboarding wizard, and low-stock status chip shipped across the desktop shell.
+- 🚧 Username/password authentication with role management scoped for the next Settings update (default admin seeded locally, POS-only role in progress).
 
 1) Product Objectives & Success Metrics
 
@@ -105,6 +106,18 @@ Data/backup: backup folder, automatic daily backups on app exit or midnight.
 
 Tax mode: per-item tax % (simple).
 
+Authentication & User Management
+
+Username + password login required before accessing the shell; credentials stored in the local SQLite database with hashed passwords.
+
+Seed a default super admin account (`admin` / `admin`) on first run; prompt the user to change the password after initial login and track whether the default is still active.
+
+Super admins can create, edit, and deactivate user accounts with roles `ADMIN` (full access) or `OPERATOR` (POS + bill printing only).
+
+Operators can access POS and invoice history but are blocked from Settings, backups, product imports, and reports.
+
+Acceptance: login blocks unauthorized access; default admin cannot be deleted; password change banner persists until resolved; role restrictions enforced across backend and UI navigation.
+
 Data Portability
 
 CSV export: products, sales, sale items, stock movements.
@@ -121,7 +134,7 @@ Basic role protection (owner PIN for destructive operations).
 
 2.2 Near-Term (v1.1+)
 
-User roles: Owner, Cashier (RBAC).
+Enhanced authentication: MFA, login audit trails, and session timeouts.
 
 Barcode scanner support (keyboard wedge first).
 
@@ -176,6 +189,20 @@ As an owner, I get daily backups automatically.
 
 Acceptance: Backup files (.sqlite timestamped) appear in backup folder; last 30 kept.
 
+3.6 Authentication & User Management
+
+As an owner, I can sign in with the default admin credentials on first launch so I can finish setup quickly.
+
+Acceptance: `admin` / `admin` works only until the password is changed; the app prompts for the change immediately after login.
+
+As an owner, I can change my password and create additional users with passwords and roles so I can delegate POS work safely.
+
+Acceptance: creating a user requires unique username, role selection (`ADMIN` or `OPERATOR`), and an initial password; edits log `updated_at` and roles update instantly.
+
+As an operator, I can log in and use the POS and invoice printing screens without seeing admin settings.
+
+Acceptance: navigation hides admin-only routes; direct URL access returns an authorization error.
+
 4) Information Architecture & Navigation
 
 Sidebar
@@ -202,6 +229,18 @@ Status chip: “Offline”, “Backup OK”, “Low Stock: N”.
 
 5) Data Model (SQLite)
 5.1 Tables (DDL)
+-- users
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL CHECK(role IN ('ADMIN','OPERATOR')),
+  requires_password_reset INTEGER NOT NULL DEFAULT 0,
+  last_login_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
 -- products
 CREATE TABLE IF NOT EXISTS products (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -277,6 +316,8 @@ Money stored as integer cents to avoid float issues.
 Tax stored as basis points (bp) for precision.
 
 current_qty is authoritative; stock_movements is the ledger.
+
+Users table stores Argon2/Bcrypt password hashes; `requires_password_reset` stays `1` until the default admin password changes.
 
 5.2 Derived Views (optional)
 CREATE VIEW IF NOT EXISTS v_daily_summary AS

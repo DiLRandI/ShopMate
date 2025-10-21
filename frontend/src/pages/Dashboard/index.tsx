@@ -134,7 +134,7 @@ export function DashboardPage({onInventoryChanged}: DashboardPageProps) {
   }
 
   if (loadError) {
-    return <p className="product-form__error text-center text-sm text-rose-600">{loadError}</p>;
+    return <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-center text-sm font-semibold text-rose-600 dark:border-rose-700 dark:bg-rose-900/40 dark:text-rose-200">{loadError}</p>;
   }
 
   return (

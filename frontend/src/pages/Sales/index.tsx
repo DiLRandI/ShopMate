@@ -123,10 +123,11 @@ export function SalesPage() {
   }
 
   return (
-    <div className="sales-pane">
-      <aside className="sales-filter">
-        <h2>Filters</h2>
-        <label>
+    <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+      <aside className="flex flex-col gap-6 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Filters</h2>
+
+        <label className="flex flex-col gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
           <span>From</span>
           <input
             type="date"
@@ -134,7 +135,8 @@ export function SalesPage() {
             onChange={event => handleFilterChange({from: new Date(event.target.value).toISOString()})}
           />
         </label>
-        <label>
+
+        <label className="flex flex-col gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
           <span>To</span>
           <input
             type="date"
@@ -143,94 +145,145 @@ export function SalesPage() {
           />
         </label>
 
-        <fieldset>
-          <legend>Payment Methods</legend>
-          {PAYMENT_METHODS.map(method => (
-            <label key={method}>
-              <input
-                type="checkbox"
-                checked={filter.paymentMethods.includes(method)}
-                onChange={event => {
-                  const next = event.target.checked
-                    ? [...filter.paymentMethods, method]
-                    : filter.paymentMethods.filter(value => value !== method);
-                  handleFilterChange({paymentMethods: next});
-                }}
-              />
-              {method}
-            </label>
-          ))}
+        <fieldset className="rounded-2xl border border-slate-200 p-4 dark:border-slate-700">
+          <legend className="text-sm font-semibold text-slate-600 dark:text-slate-300">Payment Methods</legend>
+          <div className="mt-3 flex flex-col gap-2">
+            {PAYMENT_METHODS.map(method => (
+              <label key={method} className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={filter.paymentMethods.includes(method)}
+                  onChange={event => {
+                    const next = event.target.checked
+                      ? [...filter.paymentMethods, method]
+                      : filter.paymentMethods.filter(value => value !== method);
+                    handleFilterChange({paymentMethods: next});
+                  }}
+                />
+                {method}
+              </label>
+            ))}
+          </div>
         </fieldset>
 
-        <fieldset>
-          <legend>Status</legend>
-          {STATUSES.map(status => (
-            <label key={status}>
-              <input
-                type="checkbox"
-                checked={filter.statuses.includes(status)}
-                onChange={event => {
-                  const next = event.target.checked
-                    ? [...filter.statuses, status]
-                    : filter.statuses.filter(value => value !== status);
-                  handleFilterChange({statuses: next});
-                }}
-              />
-              {status}
-            </label>
-          ))}
+        <fieldset className="rounded-2xl border border-slate-200 p-4 dark:border-slate-700">
+          <legend className="text-sm font-semibold text-slate-600 dark:text-slate-300">Status</legend>
+          <div className="mt-3 flex flex-col gap-2">
+            {STATUSES.map(status => (
+              <label key={status} className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={filter.statuses.includes(status)}
+                  onChange={event => {
+                    const next = event.target.checked
+                      ? [...filter.statuses, status]
+                      : filter.statuses.filter(value => value !== status);
+                    handleFilterChange({statuses: next});
+                  }}
+                />
+                {status}
+              </label>
+            ))}
+          </div>
         </fieldset>
 
-        <div className="sales-summary">
-          <p>Total Completed: {summary.count}</p>
-          <p>Revenue: {(summary.totalCents / 100).toLocaleString(undefined, {style: "currency", currency: "USD"})}</p>
+        <div className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-700 dark:bg-slate-800/60 dark:text-slate-200">
+          <p className="flex items-center justify-between">
+            <span>Total Completed</span>
+            <span>{summary.count}</span>
+          </p>
+          <p className="mt-2 flex items-center justify-between text-brand-primary dark:text-blue-200">
+            <span>Revenue</span>
+            <span>{(summary.totalCents / 100).toLocaleString(undefined, {style: "currency", currency: "USD"})}</span>
+          </p>
         </div>
       </aside>
 
-      <section className="sales-history">
-        <div className="sales-history__header">
-          <h2>Sales History</h2>
-          {actionMessage && <span className="sales-message" role="status">{actionMessage}</span>}
+      <section className="flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-sm transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Sales History</h2>
+          {actionMessage && (
+            <span className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-200" role="status">
+              {actionMessage}
+            </span>
+          )}
         </div>
+
         {isLoading ? (
-          <p>Loading sales…</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Loading sales…</p>
         ) : error ? (
-          <p className="sales-error">{error}</p>
+          <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600 dark:border-rose-700 dark:bg-rose-900/40 dark:text-rose-200">{error}</p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Invoice</th>
-                <th>Date</th>
-                <th>Customer</th>
-                <th>Payment</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sales.map(sale => (
-                <tr key={sale.id}>
-                  <td>{sale.saleNumber}</td>
-                  <td>{new Date(sale.timestamp).toLocaleString()}</td>
-                  <td>{sale.customerName || "Walk-in"}</td>
-                  <td>{sale.paymentMethod}</td>
-                  <td>{(sale.totalCents / 100).toLocaleString(undefined, {style: "currency", currency: "USD"})}</td>
-                  <td>{sale.status}</td>
-                  <td className="sales-actions">
-                    <button type="button" onClick={() => showInvoice(sale.id)}>View</button>
-                    {sale.status === "Completed" ? (
-                      <>
-                        <button type="button" onClick={() => handleRefund(sale.id)}>Refund</button>
-                        <button type="button" onClick={() => handleVoid(sale.id)}>Void</button>
-                      </>
-                    ) : null}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="min-w-full table-fixed border-separate border-spacing-y-2 text-left text-sm text-slate-700 dark:text-slate-200">
+              <thead className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                <tr>
+                  <th className="px-3 py-2">Invoice</th>
+                  <th className="px-2 py-2">Date</th>
+                  <th className="px-2 py-2">Customer</th>
+                  <th className="px-2 py-2">Payment</th>
+                  <th className="px-2 py-2 text-right">Total</th>
+                  <th className="px-2 py-2">Status</th>
+                  <th className="px-2 py-2 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sales.map(sale => (
+                  <tr key={sale.id} className="rounded-2xl bg-slate-50/70 shadow-sm dark:bg-slate-800/60">
+                    <td className="rounded-l-2xl px-3 py-3 font-semibold text-slate-900 dark:text-white">{sale.saleNumber}</td>
+                    <td className="px-2 py-3 text-sm">{new Date(sale.timestamp).toLocaleString()}</td>
+                    <td className="px-2 py-3 text-sm">{sale.customerName || "Walk-in"}</td>
+                    <td className="px-2 py-3 text-sm">{sale.paymentMethod}</td>
+                    <td className="px-2 py-3 text-right font-semibold text-slate-900 dark:text-white">
+                      {(sale.totalCents / 100).toLocaleString(undefined, {style: "currency", currency: "USD"})}
+                    </td>
+                    <td className="px-2 py-3">
+                      <span
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                          sale.status === "Completed"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
+                            : sale.status === "Refunded"
+                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
+                              : "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200"
+                        }`}
+                      >
+                        {sale.status}
+                      </span>
+                    </td>
+                    <td className="rounded-r-2xl px-2 py-3">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => showInvoice(sale.id)}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                        >
+                          View
+                        </button>
+                        {sale.status === "Completed" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleRefund(sale.id)}
+                              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
+                            >
+                              Refund
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleVoid(sale.id)}
+                              className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-400/50 dark:border-rose-700 dark:bg-rose-900/40 dark:text-rose-200"
+                            >
+                              Void
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

@@ -24,7 +24,7 @@ export function InvoiceDialog({sale, onClose}: InvoiceDialogProps) {
             <p className="text-sm text-slate-500 dark:text-slate-400">Payment Method: {sale.paymentMethod}</p>
           </div>
           <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-primary dark:bg-blue-900/30 dark:text-blue-100">
-            {new Date(sale.completedAt ?? Date.now()).toLocaleString()}
+            {new Date(sale.timestamp ?? Date.now()).toLocaleString()}
           </span>
         </header>
 

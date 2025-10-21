@@ -10,11 +10,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: {
-          primary: "#304FFE",
-          accent: "#00C8B4",
-          dark: "#0B1220",
-        },
+        "brand-primary": "#304FFE",
+        "brand-accent": "#00C8B4",
+        "brand-dark": "#0B1220",
       },
       boxShadow: {
         shell: "0 32px 80px rgba(12, 23, 42, 0.12)",
