@@ -1,188 +1,133 @@
-# ShopMate Technical Architecture (2025-10-21)
+# ShopMate Technical Architecture (2025-10-25)
 
 ## Purpose
-This document describes the recommended repository layout, tooling baselines, and engineering conventions for the ShopMate Wails (Go + React) desktop application. It aligns the Go 1.25.3 backend, React/Vite frontend, and build automation so contributors share a consistent starting point.
+This document captures the current architecture of the ShopMate desktop application as shipped on 2025-10-25. It documents the Go + Wails backend, the React + Vite frontend, data persistence choices, and the major cross-cutting systems so contributors have an accurate reference point.
 
-## Backend: Go 1.25.3 + Wails
+## Stack Overview
+- **Backend:** Go 1.25.3, Wails 2.10.2, SQLite (modernc.org/sqlite driver).
+- **Frontend:** React 18, TypeScript 5.9, Vite 6 (SWC plugin), Tailwind CSS 4 utilities.
+- **Tooling & Tests:** Go test/vet, Vitest + Testing Library, ESLint/Prettier, Makefile automation.
 
-### Toolchain Baseline
-- Target Go 1.25.3 to take advantage of new runtime, toolchain, and library capabilities, including DWARF v5 debug info, the `sync.WaitGroup.Go` helper, and upgrades to `testing/synctest`, `encoding/json/v2`, and `log/slog` (GroupAttrs, `Record.Source`). citeturn6search0
-- Enable experiments selectively:
-  - `GOEXPERIMENT=jsonv2` for high-throughput JSON import/export benchmarks.
-  - `GOEXPERIMENT=greenteagc` in profiling builds to validate GC improvements before enabling for production.
-
-### Repository Layout
-- Prefer a modular layout rooted in `cmd`, `internal`, and feature-oriented packages to balance clarity and encapsulation. Keep the entrypoint thin and isolate reusable code from application-specific logic. citeturn1search0turn1search1turn1search8
-- Recommended structure (subset):
-
-```
-.
-├── cmd/
-│   └── shopmate-desktop/      # main Wails bootstrap; wire dependencies only
-├── internal/
-│   ├── app/                   # orchestration layer (dependency injection)
-│   ├── domain/                # entities + value objects (products, sales, taxes)
-│   ├── services/              # use cases, reporting engines
-│   ├── adapters/
-│   │   ├── storage/           # SQLite repositories, migrations
-│   │   ├── invoicing/         # invoice rendering + PDF hooks
-│   │   └── backup/            # backup scheduler + retention
-│   ├── auth/                  # credential hashing, session issuance, middleware
-│   └── wailsapi/              # backend → frontend bindings
-├── pkg/                       # exportable utilities (only if reused externally)
-├── migrations/                # SQL files embedded via //go:embed
-├── scripts/                   # helper scripts (linting, asset sync)
-└── wails.json                 # Wails project configuration
-```
-
-- Keep `internal` relatively flat; factor packages by domain (inventory, billing, reports) instead of technical layers once modules grow. citeturn1search0turn1search4
-
-### Logging with `log/slog`
-- Adopt `slog` as the default logger. Create a centralized logger factory that:
-  - Configures JSON handlers for production and human-readable handlers for development.
-  - Adds contextual groups (`WithGroup`) for subsystems (e.g., `db`, `http`, `backup`).
-  - Enriches errors with stack traces via helper adapters. citeturn7search1turn7search3
-- Leverage Go 1.25 additions (`GroupAttrs`, `Record.Source`) to attach source metadata while keeping production logging lightweight. citeturn6search0
-
-### Persistence & Concurrency
-- Continue using SQLite (WAL mode) but wrap DB access in repositories that validate business invariants server-side.
-- Extend `products` migrations with `margin_bp` and `max_discount_bp` (0–10000) and `sale_items` with `effective_discount_bp`; repositories clamp values and assert `max_discount_bp <= margin_bp` before writes.
-- Persist cart guardrail evaluations in domain services so order-level discounts are allocated per line and recorded as `effective_discount_bp` for later reporting.
-- Use `sync.WaitGroup.Go` for structured fan-out work (e.g., concurrent export generation) to avoid manual counter management. citeturn6search0
-- For concurrent testing, exercise workflows with `testing/synctest` to catch timing bugs in stock adjustments and backup scheduling. citeturn6search0
-
-### Authentication & Authorization
-- `internal/auth` owns user repositories, password hashing helpers (bcrypt by default, ready for Argon2), and session token issuance (signed, short-lived refresh in memory).
-- Seed a default super admin (`admin` / `admin`) in the first migration; flag `requires_password_reset` so the UI can force a change after the first login.
-- Store users in a dedicated `users` table (username, password hash, role, timestamps, reset flag). Reuse the shared SQLite connection, wrap mutations in transactions, and expose CRUD via interfaces for testability.
-- Add Wails middleware that loads the session, attaches the authenticated user to request context, and enforces role checks (`ADMIN`, `OPERATOR`). Deny execution before reaching domain services if the caller lacks the privilege.
-- Log auth events (success, failure, password change) through the shared `slog` adapters without recording raw passwords.
-- Keep the implementation offline-first: no external auth servers or compliance integrations are required in v1.0; everything lives inside the local SQLite database.
-
-### Backup & Restore Lifecycle
-- `internal/services/backup` now schedules nightly snapshots (next-midnight ticker) and on-shutdown backups. Retention defaults to 30 and trims both files and metadata for older entries using millisecond-resolution filenames.
-- Manual restore copies the selected snapshot, records a pre-restore backup automatically, and is covered by integration tests in `service_test.go`.
-- All backup metadata lives in `backup_settings` and `backups`; helpers expose `Create`, `List`, `Restore`, and `SetRetention` to the Wails bridge.
-
-### Settings & Security
-- `internal/services/settings` wraps the `settings` table, exposes profile/preferences APIs, and hashes owner PINs via `bcrypt` with validation helpers. `VerifyOwnerPIN` and `ClearOwnerPIN` gate sensitive operations.
-- `internal/auth` is responsible for password hashing/verification, super-admin creation, and user CRUD (username, password, role, status). All password hashes stay inside SQLite; only the reset flag leaks to the frontend.
-- Preferences track locale, dark theme preference, telemetry toggles, and whether the default admin password is still active so the UI can block navigation until it is changed.
-- Add POS preference keys: `pos.enable_discount_suggestions` (bool, default `false`) and `pos.default_margin_bp` (int basis points used to prefill new products); backend surfaces both on bootstrap and persists updates atomically.
-
-### Invoice Rendering & Reporting
-- `internal/services/invoice` renders deterministic HTML templates (Go `html/template`) and emits lightweight PDFs via a handwritten writer (no external binary dependency). Wails API exposes base64 payloads for printing/downloading.
-- Reporting service now aggregates daily summaries, top products, and the product margin report. It allocates order-level discounts per line, persists `effective_discount_bp`, and exposes CSV exports that include configured margin/max discount and realized discount variance.
-
-### Wails Bridge Contract
-- All exported Go APIs now return a generic `response.Envelope[T]` ensuring `{ok,data,error}` semantics. Frontend wrappers unwrap envelopes consistently via `services/wailsResponse.ts`.
-- New bridges: `auth.API` (login/logout/session), `user.API` (admin CRUD for users + role updates), `settings.API`, `invoice.API`, extended `backup.API`, `product.API` (CRUD/import/export), and `sale.API` (filters + void/refund).
-- Extend `sale.API` with `SuggestDiscount(lines)` to compute guardrail-compliant order discounts, add `product.API.MarginDefaults()` for seeding new product forms, and expose `reports.API.ProductMargins(range)` for margin variance dashboards/exports.
-
-### Testing & Tooling
-- Place unit tests alongside implementation packages (`*_test.go`) and use table-driven tests for domain logic. citeturn1search0
-- Add integration tests under `tests/` (or `internal/tests/`) for end-to-end Wails calls and database migrations.
-- Add regression suites that assert margin/max discount guardrails, discount suggestion outputs, and `reports.ProductMargins` aggregations to prevent profitability regressions.
-
-## Frontend: React + Vite
-
-### Tooling Baseline
-- Require Node.js ≥ 20.19 and Vite 6 (current `vite.dev` line) to stay within supported browser baselines; scaffold with `npm create vite@latest … --template react-swc`. citeturn10search1turn2search2
-- Prefer the SWC variant of `@vitejs/plugin-react` for faster HMR and builds on larger codebases. citeturn2search2
-- Configure TypeScript in strict mode with modern targets (`ES2022`, `moduleResolution: "bundler"`) to align with Vite’s ESM pipeline. citeturn2search1
-
-### Directory Layout
-- Organize `src/` by features with page-level entry folders and colocated assets/tests to improve discoverability as the POS grows. citeturn2search0turn10search3
-- Suggested hierarchy:
-
-```
-frontend/
-├── src/
-│   ├── app/                     # AppShell, router, providers
-│   ├── features/
-│   │   ├── auth/
-│   │   ├── users/
-│   │   ├── inventory/
-│   │   ├── billing/
-│   │   ├── reports/
-│   │   └── backups/
-│   ├── pages/
-│   │   ├── Dashboard/
-│   │   ├── PosSale/
-│   │   └── Settings/
-│   ├── components/              # cross-feature UI primitives
-│   ├── hooks/
-│   ├── services/                # API clients wrapping Wails bindings
-│   ├── state/                   # Zustand/RTK slices (if adopted)
-│   ├── themes/
-│   ├── utils/
-│   └── main.tsx
-├── public/
-│   └── index.html
-└── vite.config.ts
-```
-
-- `features/auth` handles login views, session hooks, and guards; `features/users` surfaces the admin-only team management screens backed by shared auth state (Zustand/context) that gates routes before POS/Settings render.
-- `features/billing` owns the POS cart, discount suggestion banner, and guardrail messaging; `features/reports` renders the margin variance table with CSV export controls.
-- Limit folder depth to keep imports manageable and collocate tests/story files with their components. citeturn2search0
-
-### Build & Performance Practices
-- Add Rollup manual chunks for vendor dependencies (`react`, `react-dom`) to improve incremental updates while keeping default code splitting. citeturn2search1
-- Define path aliases in `vite.config.ts` (e.g., `@/features/*`) to avoid brittle relative imports. citeturn2search2
-- Use strict TypeScript, React error boundaries, and modern image/lazy-loading patterns to maintain perceived performance. citeturn2search1turn2search10
-- Prefer Vitest and ESLint/Prettier for automated quality gates when the frontend scaffolding is generated. citeturn2search10
-
-### Authentication UX & State Management
-- Render a standalone login screen that calls `auth.API.Login` and stores the returned session token + role inside a central auth store (Zustand or React context). Persist tokens with `localStorage` guarded by Wails secure storage utilities.
-- Provide a `RequireRole` wrapper component that blocks navigation, shows a password-change warning if `requires_password_reset` is true, and reroutes to login when the session expires.
-- The Settings “Team Members” page (under `features/users`) calls `user.API` for CRUD, with inline validation for username uniqueness and password strength. Operators never load this route.
-- Expose a “Change Password” dialog in Settings → My Profile, hitting `auth.API.ChangePassword` and updating the reset flag on success.
-
-### POS Discount & Margin UX
-- `features/billing` subscribes to `settingsStore.pos.enableDiscountSuggestions` and only renders the suggestion banner when enabled; banner content pulls from `sale.API.SuggestDiscount` and links to product detail modals for quick edits.
-- Cart lines badge their margin/max discount guardrails; any override attempts outside allowed ranges surface toast + inline error states while keeping keyboard workflows intact.
-- Product editors (`features/inventory/ProductForm`) call `product.API.MarginDefaults()` for prefills, normalize margin/max discount inputs as percentages, and reuse shared validation hooks so CSV imports, forms, and bulk edits stay consistent.
-- Margin report view composes a TanStack Table grid with column filters, “Over Discount” pill indicators, and export-to-CSV button wired to `reports.API.ProductMargins`.
-
-## Cross-Cutting Build Automation
-- Provide a `Makefile` wrapper for common tasks: `make dev` (Wails dev server + frontend), `make build` (production binary), `make lint`, and `make test`. This keeps the workflow consistent across platforms and CI. Wails CLI commands (`wails dev`, `wails build`) remain the single source of truth. citeturn11search0turn11search1turn10search1
-- Document environment variables (e.g., `GOEXPERIMENT`, `NODE_ENV`) inside the Make targets or `.env.example` files to simplify onboarding.
-
-### Release Packaging Checklist
-1. `npm ci && npm run build` – compile the React bundle with strict TS checks.
-2. `GOOS=<target> GOARCH=<arch> wails build -clean` – produce platform binaries; artifacts land under `build/bin/<target>`.
-3. Code-sign outputs (`signtool` on Windows, `codesign`/`notarize` on macOS) using credentials stored outside the repo.
-4. Zip installers with versioned naming (`ShopMate-v1.0.0-win64.zip`, etc.) and attach checksum manifests.
-5. Smoke test each build: launch, run POS flow, verify reports/export, confirm backups folder created.
-
-## Combined Repository Snapshot
-
+## Repository Layout
 ```
 ShopMate/
-├── Makefile
-├── go.mod
-├── go.sum
-├── wails.json
-├── cmd/
-│   └── shopmate-desktop/main.go
+├── main.go                      # Wails bootstrap
+├── frontend_assets.go           # go:embed bundle for compiled frontend
 ├── internal/
-│   ├── app/
-│   ├── domain/
-│   ├── services/
+│   ├── app/                     # application wiring and lifecycle
 │   ├── adapters/
-│   ├── auth/
-│   └── wailsapi/
-├── migrations/
+│   │   └── storage/sqlite       # Store wrapper + repositories
+│   ├── domain/                  # domain models (product, sale, report, settings, backup)
+│   ├── logging/                 # slog construction helpers
+│   ├── services/                # business logic (product, sale, report, invoice, backup, settings)
+│   └── wailsapi/                # Go → frontend bridges returning envelopes
+├── migrations/                  # SQL migrations embedded at build time
 ├── frontend/
-│   ├── package.json
-│   ├── src/
-│   └── vite.config.ts
-├── docs/
-│   ├── prd.md
-│   └── technical-architecture.md
-└── tests/
-    ├── integration/
-    └── smoke/
+│   ├── package.json             # npm dependencies & scripts
+│   └── src/
+│       ├── app/                 # App shell, layout, providers
+│       ├── components/          # shared UI components
+│       ├── features/            # feature folders (products, pos, reports, settings, onboarding)
+│       ├── pages/               # page-level entry points
+│       ├── services/            # Wails client helpers
+│       ├── state/               # simple shared state utilities
+│       ├── themes/              # theme tokens & Tailwind hooks
+│       └── utils/               # shared calculations (money, totals)
+├── docs/                        # PRD, architectural reference, restore guide, task list
+├── data/                        # development database, backups, seed templates
+├── Makefile                     # dev/build/test/lint automation
+├── wails.json                   # Wails project configuration
+├── go.mod / go.sum
+└── README.md
 ```
 
-This blueprint should be adapted pragmatically—keep the structure lean during early development and evolve as features warrant additional separation.
+## Backend Composition
+### Entry Point & Lifecycle
+- `main.go` reads `SHOPMATE_ENV`, `SHOPMATE_LOCALE`, and `SHOPMATE_ENABLE_TELEMETRY`, builds the slog logger, initialises the `internal/app.App`, and starts the Wails runtime.
+- `internal/app.App` owns the shared SQLite store, constructs repositories and services, binds Wails APIs, and manages lifecycle hooks:
+  - `Startup`: captures the runtime context and starts the nightly backup scheduler.
+  - `Shutdown`: stops the scheduler, triggers a final backup, and closes the store.
+
+### Persistence
+- `internal/adapters/storage/sqlite.Open` configures SQLite with WAL mode, busy timeout, foreign keys, and applies embedded migrations.
+- Repositories (`ProductRepository`, `SaleRepository`, `ReportRepository`, `BackupRepository`, `SettingsRepository`) encapsulate SQL and enforce constraints (stock checks, retention trimming, profile defaults).
+- Database file defaults to `data/app.sqlite`; manual overrides use `SHOPMATE_DB_PATH`.
+
+### Services
+- `services/product`: validation, CRUD, stock adjustments, CSV import/export, low-stock counts.
+- `services/sale`: sale creation with tax/discount math, list/filter, refund, void (restocking), plus dependency on `ProductRepository` for lookups.
+- `services/report`: aggregates daily summary and top-product metrics, produces CSV exports.
+- `services/backup`: creates backups, restores snapshots (with automatic pre-restore capture), enforces retention, and runs the nightly scheduler.
+- `services/settings`: stores shop profile & UI preferences, handles owner PIN hashing/verification (bcrypt), and exposes convenience helpers (`HasOwnerPIN`). PIN checks are not yet enforced elsewhere in the app.
+- `services/invoice`: renders invoices via Go templates, produces lightweight PDF output without external binaries.
+
+### Wails API Bridges
+Each bridge returns a `response.Envelope[T]` (`{ok, data, error}`) to keep frontend error handling uniform.
+- `product.API`: create, list, update, delete, adjust stock, CSV import/export, low-stock count.
+- `sale.API`: create sale, list with filters, fetch single sale, refund, void.
+- `report.API`: daily summary, top products, CSV exports for both reports.
+- `backup.API`: create backup, list recent backups, restore by filename, update retention.
+- `settings.API`: get/save profile, get/save preferences, set/verify/clear/has owner PIN.
+- `invoice.API`: generate invoice HTML or PDF for a given sale.
+- `app.App`: exposes a simple `HealthPing` for smoke tests through Wails binding.
+
+### Logging & Telemetry
+- `internal/logging` builds slog loggers with per-environment handling (JSON for production, pretty text with source metadata for development).
+- Telemetry toggle attaches a noop handler placeholder for future sinks; errors ≥ `Error` level include telemetry metadata when enabled.
+- All services log through the shared logger, ensuring consistent context keys.
+
+### Background Work
+- `backup.Service` scheduler calculates next midnight in app local time and triggers backups; scheduler shuts down gracefully when the runtime stops.
+- No other background workers run today; future scheduled tasks should reuse the same cancellation pattern.
+
+### Known Gaps
+- No authentication or role enforcement is wired yet; all APIs assume trusted local access.
+- Owner PIN storage exists but destructive flows (refund, void, restore) do not yet prompt for it.
+- Margin and discount guardrail features are not implemented in repositories or services.
+- Margin variance reporting endpoints are not present.
+
+## Frontend Composition
+### App Shell & Navigation
+- `src/app/App.tsx` orchestrates initial data fetch (profile, preferences, low stock), maintains navigation state, and wires keyboard shortcuts (`Alt+1..5`, `Alt+D`).
+- `AppShell` renders the layout, low-stock badge, dark-mode toggle, and emits status messages.
+- Onboarding modal prompts for shop profile and optional product import when the profile is incomplete.
+
+### Feature Folders
+- `features/products`: Wails client, product table, product form, CSV import/export wiring, stock adjustment UI.
+- `features/pos`: cart management, totals calculation, sale submission, invoice dialog.
+- `features/reports`: API helpers, daily summary/top products UI, CSV download utilities.
+- `features/settings`: profile/preferences forms, owner PIN management, shared currency formatter context.
+- `features/onboarding`: first-run wizard.
+- Shared styles use Tailwind utility classes defined in `frontend/src/themes` and the global Tailwind config.
+
+### State & Utilities
+- Local component state (React hooks) drives most flows. Shared context (`ShopProfileProvider`) exposes profile + currency helpers.
+- Utilities handle money parsing/formatting, discount math, and encoding (base64 → Uint8Array).
+- Dark-mode state persists via backend preferences; toggling updates both DOM class and stored preferences.
+
+### Testing & Quality
+- Vitest suites cover POS totals (`features/pos/utils.test.ts`) and App shell navigation (`app/AppShell.test.tsx`).
+- Go unit tests cover product CSV parsing, settings serialization, backup retention, and invoice helpers.
+- ESLint/Prettier enforce code style; `npm run lint` and `npm run test` are invoked via the Makefile.
+
+## Build & Delivery
+- `Makefile` targets:
+  - `make deps` installs Go modules and npm dependencies.
+  - `make dev` runs `wails dev` for backend + frontend live reload.
+  - `make build` produces platform binaries via `wails build`.
+  - `make lint` runs `go vet` and frontend linting; `make test` runs Go tests and Vitest.
+  - `make tidy` formats Go code and runs frontend formatting.
+- `frontend_assets.go` embeds the production build into the Go binary for distribution.
+- Release packaging follows the documented checklist in `docs/prd.md` and `docs/restore-guide.md`.
+
+## Operational Notes
+- Database and backups live under `data/` by default (`data/app.sqlite`, `data/backups/`).
+- Manual restore flow copies the selected backup, records a pre-restore snapshot, then swaps the primary DB.
+- Owner PIN hashing relies on bcrypt; verification logic enforces numeric PINs (4–10 digits).
+- Shutdown creates a final backup before closing the store, ensuring operator-triggered restores always have a recent snapshot.
+
+## Roadmap Considerations
+- Introduce authentication modules (`internal/auth`, Wails middleware, frontend login screens) before distributing to stores with multiple operators.
+- Extend schema and services to support margin/max-discount guardrails and expose them through POS + reporting.
+- Evaluate persistent global state (e.g., Zustand) once authentication and role-aware routing are introduced.
+- Plan for ESC/POS printing, purchase orders, and localisation after the v1.0 authentication milestone.

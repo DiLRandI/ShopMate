@@ -3,11 +3,11 @@
 ## Manual Restore Steps
 1. Open **Settings → Data & Backups** in the desktop app and list recent snapshots.
 2. Trigger `Create Backup` before restoring to capture the current state (`app-pre-restore-<timestamp>.sqlite` is saved automatically).
-3. Select the snapshot to restore and confirm with the owner PIN. The app replaces `app.sqlite` with the snapshot and logs the action via `backup.service.Restore`.
+3. Select the snapshot to restore and confirm the action. (Owner PIN enforcement is planned but not yet wired.) The app replaces `app.sqlite` with the snapshot and logs the action via `backup.service.Restore`.
 4. Re-launch the application to reopen connections to the refreshed database.
 
 ## Verifying a Restore
-- **Check latest backup records**: `make shell` → `sqlite3 data/app.sqlite 'SELECT filename, created_at FROM backups ORDER BY created_at DESC LIMIT 5;'`
+- **Check latest backup records**: `sqlite3 data/app.sqlite 'SELECT filename, created_at FROM backups ORDER BY created_at DESC LIMIT 5;'`
 - **Integrity check**: run `sqlite3 data/app.sqlite 'PRAGMA integrity_check;'` to ensure no corruption after the swap.
 - **Application smoke test**: execute `make dev` and load the Products, POS, Sales, and Reports pages to confirm data consistency.
 
